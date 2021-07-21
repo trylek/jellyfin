@@ -112,6 +112,9 @@ namespace Emby.Server.Implementations.IO
 
         private bool IsLibraryMonitorEnabled(BaseItem item)
         {
+
+            return false;
+            /*
             if (item is BasePluginFolder)
             {
                 return false;
@@ -125,6 +128,7 @@ namespace Emby.Server.Implementations.IO
             }
 
             return false;
+            */
         }
 
         public void Start()

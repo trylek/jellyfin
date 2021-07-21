@@ -364,6 +364,8 @@ namespace MediaBrowser.MediaEncoding.Encoder
 
         private string GetProcessOutput(string path, string arguments)
         {
+            return "rich";
+            /*
             using (var process = new Process()
             {
                 StartInfo = new ProcessStartInfo(path, arguments)
@@ -384,6 +386,7 @@ namespace MediaBrowser.MediaEncoding.Encoder
 
                 return process.StandardOutput.ReadToEnd();
             }
+            */
         }
     }
 }

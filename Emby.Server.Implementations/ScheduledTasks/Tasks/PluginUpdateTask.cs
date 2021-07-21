@@ -62,7 +62,7 @@ namespace Emby.Server.Implementations.ScheduledTasks
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
         {
             // At startup
-            yield return new TaskTriggerInfo { Type = TaskTriggerInfo.TriggerStartup };
+            // yield return new TaskTriggerInfo { Type = TaskTriggerInfo.TriggerStartup };
 
             // Every so often
             yield return new TaskTriggerInfo { Type = TaskTriggerInfo.TriggerInterval, IntervalTicks = TimeSpan.FromHours(24).Ticks };

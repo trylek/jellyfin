@@ -208,6 +208,7 @@ namespace Jellyfin.Server
                 stopWatch.Stop();
 
                 _logger.LogInformation("Startup complete {Time:g}", stopWatch.Elapsed);
+                Environment.Exit(0);
 
                 // Block main thread until shutdown
                 await Task.Delay(-1, _tokenSource.Token).ConfigureAwait(false);

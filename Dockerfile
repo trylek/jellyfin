@@ -1,4 +1,4 @@
-ARG DOTNET_VERSION=5.0
+ARG DOTNET_VERSION=6.0-bullseye-slim-amd64
 
 FROM node:lts-alpine as web-builder
 ARG JELLYFIN_WEB_VERSION=master
@@ -14,9 +14,9 @@ COPY . .
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 # because of changes in docker and systemd we need to not build in parallel at the moment
 # see https://success.docker.com/article/how-to-reserve-resource-temporarily-unavailable-errors-due-to-tasksmax-setting
-RUN dotnet publish Jellyfin.Server --disable-parallel --configuration Release --output="/jellyfin" --self-contained --runtime linux-x64 "-p:DebugSymbols=false;DebugType=none"
+RUN dotnet publish Jellyfin.Server --disable-parallel --configuration Release --output="/jellyfin" --self-contained true --runtime linux-x64 "-p:DebugSymbols=false;DebugType=none" /p:PublishReadyToRun=true /p:PublishReadyToRunComposite=true
 
-FROM debian:buster-slim
+FROM mcr.microsoft.com/dotnet/runtime-deps:${DOTNET_VERSION}
 
 # https://askubuntu.com/questions/972516/debian-frontend-environment-variable
 ARG DEBIAN_FRONTEND="noninteractive"
@@ -24,6 +24,7 @@ ARG DEBIAN_FRONTEND="noninteractive"
 ARG APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
 # https://github.com/NVIDIA/nvidia-docker/wiki/Installation-(Native-GPU-Support)
 ENV NVIDIA_DRIVER_CAPABILITIES="compute,video,utility"
+ENV DOTNET_ROLL_FORWARD=LatestMajor
 
 COPY --from=builder /jellyfin /jellyfin
 COPY --from=web-builder /dist /jellyfin/jellyfin-web
@@ -67,11 +68,6 @@ RUN apt-get update \
  && mkdir -p /cache /config /media \
  && chmod 777 /cache /config /media \
  && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen
-
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
-ENV LC_ALL en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
 
 EXPOSE 8096
 VOLUME /cache /config /media

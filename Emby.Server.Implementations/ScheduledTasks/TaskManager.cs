@@ -281,6 +281,9 @@ namespace Emby.Server.Implementations.ScheduledTasks
                     }
                 }
             }
+
+            _logger.LogInformation("Exit process");
+            Environment.Exit(0);
         }
     }
 }
