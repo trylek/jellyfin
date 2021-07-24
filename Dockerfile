@@ -12,9 +12,7 @@ FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} as builder
 WORKDIR /repo
 COPY . .
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
-# because of changes in docker and systemd we need to not build in parallel at the moment
-# see https://success.docker.com/article/how-to-reserve-resource-temporarily-unavailable-errors-due-to-tasksmax-setting
-RUN dotnet publish Jellyfin.Server --disable-parallel --configuration Release --output="/jellyfin" --self-contained true --runtime linux-x64 "-p:DebugSymbols=false;DebugType=none" /p:PublishReadyToRun=true /p:PublishReadyToRunComposite=true
+RUN /repo/PublishJellyfinServer.sh
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:${DOTNET_VERSION}
 
