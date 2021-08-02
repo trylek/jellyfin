@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # Build configuration
-NETCORE_COMPOSITE=false
+NETCORE_COMPOSITE=true
 NETCORE_INCLUDE_ASPNET=false
 ASPNET_COMPOSITE=false
-APP_R2R=true
+APP_R2R=false
 APP_COMPOSITE=false
 SELF_CONTAINED=true
 
@@ -42,8 +42,56 @@ PUBLISH_CMD+=" --runtime linux-x64"
 PUBLISH_CMD+=" -p:DebugSymbols=false;DebugType=none"
 PUBLISH_CMD+=" --output $OUTPUT_DIR"
 PUBLISH_CMD+=" --self-contained $SELF_CONTAINED"
-# PUBLISH_CMD+=" -p:PublishReadyToRun=$APP_R2R"
-# PUBLISH_CMD+=" -p:PublishReadyToRunComposite=$APP_COMPOSITE"
+#PUBLISH_CMD+=" -p:PublishReadyToRun=$APP_R2R"
+#PUBLISH_CMD+=" -p:PublishReadyToRunComposite=$APP_COMPOSITE"
+#PUBLISH_CMD+=" -p:PublishReadyToRunCrossgen2ExtraArgs=--inputbubble%3b--instruction-set:avx2"
 
 echo "Publishing Jellyfin.Server: $PUBLISH_CMD"
 $PUBLISH_CMD
+
+dotnet new console -o /testapp
+dotnet publish /testapp -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -r linux-x64
+rm -rf /testapp
+
+# Identify .NET Core and ASP.NET framework locations
+DOTNET_ROOT=/usr/share/dotnet
+find $DOTNET_ROOT -name System.Private.CoreLib.dll
+SPC_PATH=`find $DOTNET_ROOT/shared -name System.Private.CoreLib.dll`
+ASP_PATH=`find $DOTNET_ROOT/shared -name Microsoft.AspNetCore.dll`
+NETCORE_PATH=$(dirname "${SPC_PATH}")
+ASPNETCORE_PATH=$(dirname "${ASP_PATH}")
+
+# Locate crossgen2
+CROSSGEN2_PATH=`find / -name crossgen2`
+
+echo "Using Crossgen2 path:    $CROSSGEN2_PATH"
+
+if [[ "$NETCORE_COMPOSITE" == "true" ]]; then
+    NETCORE_CMD="$CROSSGEN2_PATH"
+    NETCORE_CMD+=" -o:$OUTPUT_DIR/framework.r2r.dll"
+    NETCORE_CMD+=" --composite"
+    NETCORE_CMD+=" --targetos:Linux"
+    NETCORE_CMD+=" --targetarch:x64"
+    NETCORE_CMD+=" --inputbubble"
+    NETCORE_CMD+=" --instruction-set:avx2"
+    NETCORE_CMD+=" $NETCORE_PATH/*.dll"
+    if [[ "$NETCORE_INCLUDE_ASPNET" == "true" ]]; then
+        NETCORE_CMD+=" $ASPNETCORE_PATH/*.dll"
+    fi
+    echo "Compiling framework: $NETCORE_CMD"
+    $NETCORE_CMD
+else
+    cp $NETCORE_PATH/*.dll $OUTPUT_DIR
+fi
+
+if [[ "$ASPNET_COMPOSITE" == "true" && "$NETCORE_INCLUDES_ASPNET" != "true" ]]; then
+    ASPNET_CMD="$CROSSGEN2_PATH"
+    ASPNET_CMD+=" -o:$OUTPUT_DIR/aspnetcore.r2r.dll"
+    ASPNET_CMD+=" --composite"
+    ASPNET_CMD+=" --targetos:Linux"
+    ASPNET_CMD+=" --targetarch:x64"
+    ASPNET_CMD+=" $ASPNETCORE_PATH/*.dll"
+    ASPNET_CMD+=" -r:$NETCORE_PATH/*.dll"
+    echo "Compiling ASP.NET Core: $ASPNET_CMD"
+    $ASPNET_CMD
+fi
