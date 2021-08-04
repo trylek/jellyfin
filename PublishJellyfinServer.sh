@@ -2,9 +2,9 @@
 
 # Build configuration
 SELF_CONTAINED=true
-APP_R2R=true
+APP_R2R=false
 APP_COMPOSITE=false
-APP_AVX2=true
+APP_AVX2=false
 NETCORE_COMPOSITE=true
 NETCORE_INCLUDE_ASPNET=true
 ASPNET_COMPOSITE=false
@@ -73,8 +73,8 @@ echo "Using Crossgen2 path:    $CROSSGEN2_PATH"
 if [[ "$NETCORE_COMPOSITE" == "true" ]]; then
     echo "About to compile fx"
     NETCORE_CMD="$CROSSGEN2_PATH"
-    # NETCORE_CMD+=" -o:$OUTPUT_DIR/framework.r2r.dll"
-    # NETCORE_CMD+=" --composite"
+    NETCORE_CMD+=" -o:$OUTPUT_DIR/framework.r2r.dll"
+    NETCORE_CMD+=" --composite"
     NETCORE_CMD+=" --targetos:Linux"
     NETCORE_CMD+=" --targetarch:x64"
     NETCORE_CMD+=" --inputbubble"
