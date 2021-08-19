@@ -208,6 +208,8 @@ namespace Jellyfin.Server
                 stopWatch.Stop();
 
                 _logger.LogInformation("Startup complete {Time:g}", stopWatch.Elapsed);
+                DisplayProcessDuration();
+
                 Environment.Exit(0);
 
                 // Block main thread until shutdown
@@ -238,6 +240,23 @@ namespace Jellyfin.Server
             {
                 StartNewInstance(options);
             }
+        }
+
+        private static void DisplayProcessDuration()
+        {
+            int pid = Process.GetCurrentProcess().Id;
+            string procStatFileName = $"/proc/{pid}/stat";
+            string procStatFileContent = File.ReadAllText(procStatFileName);
+            _logger.LogInformation("Process statistics: {0}: {1}", procStatFileName, procStatFileContent);
+            string[] procStat = File.ReadAllText(procStatFileName).Split(' ');
+            const int CUTIME_INDEX = 13;
+            const int CSTIME_INDEX = 14;
+            long cutime_msecs = long.Parse(procStat[CUTIME_INDEX]) * 10;
+            long cstime_msecs = long.Parse(procStat[CSTIME_INDEX]) * 10;
+            _logger.LogInformation("Total execution time (msecs): {0} (user mode {1}, system {2})",
+                cutime_msecs + cstime_msecs,
+                cutime_msecs,
+                cstime_msecs);
         }
 
         /// <summary>

@@ -57,7 +57,7 @@ RUN apt-get update \
  && chmod 777 /cache /config /media \
  && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen
 
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=0
 ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
@@ -69,6 +69,22 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 # because of changes in docker and systemd we need to not build in parallel at the moment
 # see https://success.docker.com/article/how-to-reserve-resource-temporarily-unavailable-errors-due-to-tasksmax-setting
 # RUN dotnet publish Jellyfin.Server --disable-parallel --configuration Release --output="/jellyfin" --self-contained --runtime linux-x64 "-p:DebugSymbols=false;DebugType=none" /p:PublishReadyToRun=true
+
+ARG APP_R2R=false
+ARG APP_COMPOSITE=false
+ARG APP_AVX2=false
+ARG NETCORE_COMPOSITE=true
+ARG NETCORE_INCLUDE_ASPNET=true
+ARG ASPNET_COMPOSITE=false
+
+
+ENV APP_R2R_VALUE=$APP_R2R
+ENV APP_COMPOSITE_VALUE=$APP_COMPOSITE
+ENV APP_AVX2_VALUE=$APP_AVX2
+ENV NETCORE_COMPOSITE_VALUE=$NETCORE_COMPOSITE
+ENV NETCORE_INCLUDE_ASPNET_VALUE=$NETCORE_INCLUDE_ASPNET
+ENV ASPNET_COMPOSITE_VALUE=$ASPNET_COMPOSITE
+
 RUN ./PublishJellyfinServer.sh
 
 FROM app

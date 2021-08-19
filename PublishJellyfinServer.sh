@@ -2,13 +2,6 @@
 
 # Build configuration
 SELF_CONTAINED=true
-APP_R2R=false
-APP_COMPOSITE=false
-APP_AVX2=false
-NETCORE_COMPOSITE=true
-NETCORE_INCLUDE_ASPNET=true
-ASPNET_COMPOSITE=false
-
 OUTPUT_DIR=/jellyfin
 rm -rf $OUTPUT_DIR
 mkdir $OUTPUT_DIR
@@ -25,10 +18,10 @@ echo "Dotnet root:             $DOTNET_ROOT"
 echo "Using .NET Core path:    $NETCORE_PATH"
 echo "Using ASP.NET Core path: $ASPNETCORE_PATH"
 echo "Output directory:        $OUTPUT_DIR"
-echo ".NET Core composite:     $NETCORE_COMPOSITE"
-echo ".NET Core + ASP.NET:     $NETCORE_INCLUDE_ASPNET"
-echo "ASP.NET composite:       $ASPNET_COMPOSITE"
-echo "Jellyfin composite:      $APP_COMPOSITE"
+echo ".NET Core composite:     $NETCORE_COMPOSITE_VALUE"
+echo ".NET Core + ASP.NET:     $NETCORE_INCLUDE_ASPNET_VALUE"
+echo "ASP.NET composite:       $ASPNET_COMPOSITE_VALUE"
+echo "Jellyfin composite:      $APP_COMPOSITE_VALUE"
 
 #  /p:PublishReadyToRunCrossgen2ExtraArgs=--inputbubble%3b--instruction-set:avx2
 
@@ -43,27 +36,20 @@ PUBLISH_CMD+=" --runtime linux-x64"
 PUBLISH_CMD+=" -p:DebugSymbols=false;DebugType=none"
 PUBLISH_CMD+=" --output $OUTPUT_DIR"
 PUBLISH_CMD+=" --self-contained $SELF_CONTAINED"
-PUBLISH_CMD+=" -p:PublishReadyToRun=$APP_R2R"
-PUBLISH_CMD+=" -p:PublishReadyToRunComposite=$APP_COMPOSITE"
+PUBLISH_CMD+=" -p:PublishReadyToRun=$APP_R2R_VALUE"
+PUBLISH_CMD+=" -p:PublishReadyToRunComposite=$APP_COMPOSITE_VALUE"
 
-if [[ "$APP_AVX2" == "true" ]]; then
+if [[ "$APP_AVX2_VALUE" == "true" ]]; then
 PUBLISH_CMD+=" -p:PublishReadyToRunCrossgen2ExtraArgs=--inputbubble%3b--instruction-set:avx2"
 fi
 
 echo "Publishing Jellyfin.Server: $PUBLISH_CMD"
 $PUBLISH_CMD
 
+echo "Building an arbitrary tiny app to make dotnet download the Crossgen2 package"
 dotnet new console -o /testapp
-dotnet publish /testapp -p:PublishReadyToRun=true -p:PublishReadyToRunComposite=true -r linux-x64
+dotnet publish /testapp -p:PublishReadyToRun=true -r linux-x64
 rm -rf /testapp
-
-# Identify .NET Core and ASP.NET framework locations
-DOTNET_ROOT=/usr/share/dotnet
-find $DOTNET_ROOT -name System.Private.CoreLib.dll
-SPC_PATH=`find $DOTNET_ROOT/shared -name System.Private.CoreLib.dll`
-ASP_PATH=`find $DOTNET_ROOT/shared -name Microsoft.AspNetCore.dll`
-NETCORE_PATH=$(dirname "${SPC_PATH}")
-ASPNETCORE_PATH=$(dirname "${ASP_PATH}")
 
 # Locate crossgen2
 CROSSGEN2_PATH=`find / -name crossgen2`

@@ -4,6 +4,8 @@ using Emby.Server.Implementations;
 using Emby.Server.Implementations.Udp;
 using MediaBrowser.Controller.Extensions;
 
+using ConfigurationExtensions = MediaBrowser.Controller.Extensions.ConfigurationExtensions;
+
 namespace Jellyfin.Server
 {
     /// <summary>
