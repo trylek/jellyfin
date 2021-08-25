@@ -65,6 +65,8 @@ ENV LANGUAGE en_US:en
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} as builder
 WORKDIR /repo
 COPY . .
+COPY crossgen2 /root/crossgen2
+# COPY .nuget /root/.nuget/packages
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 # because of changes in docker and systemd we need to not build in parallel at the moment
 # see https://success.docker.com/article/how-to-reserve-resource-temporarily-unavailable-errors-due-to-tasksmax-setting
@@ -73,10 +75,10 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 ARG APP_R2R=false
 ARG APP_COMPOSITE=false
 ARG APP_AVX2=false
-ARG NETCORE_COMPOSITE=true
-ARG NETCORE_INCLUDE_ASPNET=true
+ARG NETCORE_COMPOSITE=false
+ARG NETCORE_INCLUDE_ASPNET=false
 ARG ASPNET_COMPOSITE=false
-
+ARG ONE_BIG_COMPOSITE=false
 
 ENV APP_R2R_VALUE=$APP_R2R
 ENV APP_COMPOSITE_VALUE=$APP_COMPOSITE
@@ -84,6 +86,7 @@ ENV APP_AVX2_VALUE=$APP_AVX2
 ENV NETCORE_COMPOSITE_VALUE=$NETCORE_COMPOSITE
 ENV NETCORE_INCLUDE_ASPNET_VALUE=$NETCORE_INCLUDE_ASPNET
 ENV ASPNET_COMPOSITE_VALUE=$ASPNET_COMPOSITE
+ENV ONE_BIG_COMPOSITE_VALUE=$ONE_BIG_COMPOSITE
 
 RUN ./PublishJellyfinServer.sh
 
