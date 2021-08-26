@@ -164,6 +164,7 @@ namespace JellyfinBench
             commandLine.AppendFormat(" --build-arg APP_R2R={0}", buildMode.AppR2R);
             commandLine.AppendFormat(" --build-arg APP_COMPOSITE={0}", buildMode.AppComposite);
             commandLine.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}", buildMode.OneBigComposite);
+            commandLine.AppendFormat(" --build-arg APP_AVX2={0}", buildMode.AppAVX2);
 
             ProcessStartInfo psi = new ProcessStartInfo()
             {

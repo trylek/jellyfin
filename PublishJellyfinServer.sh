@@ -29,6 +29,7 @@ echo "ASP.NET composite:       $ASPNET_COMPOSITE_VALUE"
 echo "Jellyfin ReadyToRun:     $APP_R2R_VALUE"
 echo "Jellyfin composite:      $APP_COMPOSITE_VALUE"
 echo "One big composite:       $ONE_BIG_COMPOSITE_VALUE"
+echo "Compile for AVX2:        $APP_AVX2_VALUE"
 
 #  /p:PublishReadyToRunCrossgen2ExtraArgs=--inputbubble%3b--instruction-set:avx2
 
