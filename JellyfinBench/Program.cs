@@ -97,7 +97,8 @@ namespace JellyfinBench
 
         static string s_timestamp;
 
-        static TextWriter s_logFile;
+        static TextWriter s_buildLogFile;
+        static TextWriter s_execLogFile;
 
         static int Main(string[] args)
         {
@@ -112,15 +113,19 @@ namespace JellyfinBench
 
             StringBuilder xml = new StringBuilder();
             xml.AppendLine("<Xml>");
-            string logFile = Path.Combine(s_folderName, $"jellyfin-bench-{s_timestamp}.log");
-            using (StreamWriter writer = new StreamWriter(logFile))
+            string buildLogFile = Path.Combine(s_folderName, $"jellyfin-build-{s_timestamp}.log");
+            string execLogFile = Path.Combine(s_folderName, $"jellyfin-run-{s_timestamp}.log");
+            using (StreamWriter buildLogWriter = new StreamWriter(buildLogFile))
+            using (StreamWriter execLogWriter = new StreamWriter(execLogFile))
             {
-                s_logFile = writer;
+                s_buildLogFile = buildLogWriter;
+                s_execLogFile = execLogWriter;
                 foreach (BuildMode mode in s_buildModes)
                 {
                     BuildAndRun(mode, xml);
                 }
-                s_logFile = null;
+                s_buildLogFile = null;
+                s_execLogFile = null;
             }
             xml.AppendLine("</Xml>");
             Console.WriteLine(new string('=', 70));
@@ -173,7 +178,7 @@ namespace JellyfinBench
                 UseShellExecute = false,
             };
 
-            int exitCode = RunProcess(psi, out List<string> stdout);
+            int exitCode = RunProcess(psi, s_buildLogFile, out List<string> stdout);
             if (exitCode != 0)
             {
                 return null;
@@ -203,7 +208,7 @@ namespace JellyfinBench
                 UseShellExecute = false,
             };
 
-            int exitCode = RunProcess(psi, out List<string> stdout);
+            int exitCode = RunProcess(psi, s_execLogFile, out List<string> stdout);
             if (exitCode != 143)
             {
                 return false;
@@ -222,7 +227,7 @@ namespace JellyfinBench
             return true;
         }
 
-        private static int RunProcess(ProcessStartInfo psi, out List<string> stdout)
+        private static int RunProcess(ProcessStartInfo psi, TextWriter logFile, out List<string> stdout)
         {
             Stopwatch sw = Stopwatch.StartNew();
 
@@ -233,7 +238,7 @@ namespace JellyfinBench
                 process.StartInfo.RedirectStandardError = true;
                 process.StartInfo.Environment["DOCKER_BUILDKIT"] = "1";
 
-                s_logFile.WriteLine("Running {0} {1}", psi.FileName, psi.Arguments);
+                logFile.WriteLine("Running {0} {1}", psi.FileName, psi.Arguments);
                 process.Start();
 
                 List<string> stdoutLines = new List<string>();
@@ -243,7 +248,7 @@ namespace JellyfinBench
                     if (!string.IsNullOrEmpty(data))
                     {
                         Console.WriteLine(data);
-                        s_logFile.WriteLine(data);
+                        logFile.WriteLine(data);
                         stdoutLines.Add(data);
                     }
                 });
@@ -253,7 +258,7 @@ namespace JellyfinBench
                     if (!string.IsNullOrEmpty(data))
                     {
                         Console.Error.WriteLine(data);
-                        s_logFile.WriteLine("!!" + data);
+                        logFile.WriteLine("!!" + data);
                         stdoutLines.Add(data);
                     }
                 });
@@ -262,7 +267,7 @@ namespace JellyfinBench
                 process.BeginErrorReadLine();
                 process.WaitForExit();
 
-                s_logFile.WriteLine(
+                logFile.WriteLine(
                     "Finished in {0} msecs with exit code {1}: {2} {3}",
                     sw.ElapsedMilliseconds,
                     process.ExitCode,
