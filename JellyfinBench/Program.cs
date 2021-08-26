@@ -10,7 +10,7 @@ namespace JellyfinBench
     class Program
     {
         const string WindowsWritingImageString = "writing image sha256:";
-        const int Iterations = 10;
+        const int Iterations = 50;
 
         struct BuildMode
         {
