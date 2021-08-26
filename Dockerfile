@@ -66,7 +66,6 @@ FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} as builder
 WORKDIR /repo
 COPY . .
 COPY crossgen2 /root/crossgen2
-# COPY .nuget /root/.nuget/packages
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 # because of changes in docker and systemd we need to not build in parallel at the moment
 # see https://success.docker.com/article/how-to-reserve-resource-temporarily-unavailable-errors-due-to-tasksmax-setting

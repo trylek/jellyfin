@@ -59,6 +59,8 @@ namespace Jellyfin.Server
         /// <returns><see cref="Task" />.</returns>
         public static Task Main(string[] args)
         {
+            DisplayProcessDuration("RUNTIME");
+
             static Task ErrorParsingArguments(IEnumerable<Error> errors)
             {
                 Environment.ExitCode = 1;
@@ -208,7 +210,7 @@ namespace Jellyfin.Server
                 stopWatch.Stop();
 
                 _logger.LogInformation("Startup complete {Time:g}", stopWatch.Elapsed);
-                DisplayProcessDuration();
+                DisplayProcessDuration("APP");
 
                 Environment.Exit(0);
 
@@ -242,7 +244,7 @@ namespace Jellyfin.Server
             }
         }
 
-        private static void DisplayProcessDuration()
+        private static void DisplayProcessDuration(string phase)
         {
             int pid = Process.GetCurrentProcess().Id;
             string procStatFileName = $"/proc/{pid}/stat";
@@ -253,10 +255,14 @@ namespace Jellyfin.Server
             const int CSTIME_INDEX = 14;
             long cutime_msecs = long.Parse(procStat[CUTIME_INDEX]) * 10;
             long cstime_msecs = long.Parse(procStat[CSTIME_INDEX]) * 10;
-            _logger.LogInformation("Total execution time (msecs): {0} (user mode {1}, system {2})",
-                cutime_msecs + cstime_msecs,
-                cutime_msecs,
-                cstime_msecs);
+            Console.WriteLine();
+            Console.WriteLine("XMLXMLXML");
+            Console.WriteLine("<Timing Phase=\"{0}\">", phase);
+            Console.WriteLine("   <TotalTimeMsec>{0}</TotalTimeMsec>", cutime_msecs + cstime_msecs);
+            Console.WriteLine("   <UserTimeMsec>{0}</UserTimeMsec>", cutime_msecs);
+            Console.WriteLine("   <SystemTimeMsec>{0}</SystemTimeMsec>", cstime_msecs);
+            Console.WriteLine("</Timing>");
+            Console.WriteLine("LMXLMXLMX");
         }
 
         /// <summary>

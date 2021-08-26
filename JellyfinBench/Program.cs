@@ -9,7 +9,6 @@ namespace JellyfinBench
 {
     class Program
     {
-        const string JellyfinFolderName = "d:\\git\\jellyfin";
         const string WindowsWritingImageString = "writing image sha256:";
         const int Iterations = 10;
 
@@ -94,6 +93,8 @@ namespace JellyfinBench
             },
         };
 
+        static string s_folderName;
+
         static string s_timestamp;
 
         static TextWriter s_logFile;
@@ -101,6 +102,8 @@ namespace JellyfinBench
         static int Main(string[] args)
         {
             s_timestamp = DateTime.Now.ToString("MMdd-HHmm");
+            s_folderName = Directory.GetCurrentDirectory();
+
             if (args.Length > 0)
             {
                 ProcessXmlFile(args[0]);
@@ -109,7 +112,7 @@ namespace JellyfinBench
 
             StringBuilder xml = new StringBuilder();
             xml.AppendLine("<Xml>");
-            string logFile = Path.Combine(JellyfinFolderName, $"jellyfin-bench-{s_timestamp}.log");
+            string logFile = Path.Combine(s_folderName, $"jellyfin-bench-{s_timestamp}.log");
             using (StreamWriter writer = new StreamWriter(logFile))
             {
                 s_logFile = writer;
@@ -119,34 +122,10 @@ namespace JellyfinBench
                 }
                 s_logFile = null;
             }
-            /*
-            BuildAndRun(
-                new BuildMode()
-                {
-                    NetCoreComposite = true,
-                    NetCoreIncludeAspNet = true,
-                    AspNetComposite = false,
-                    AppR2R = true,
-                    AppComposite = true,
-                    OneBigComposite = false
-                },
-                xml);
-            BuildAndRun(
-                new BuildMode()
-                {
-                    NetCoreComposite = false,
-                    NetCoreIncludeAspNet = false,
-                    AspNetComposite = false,
-                    AppR2R = true,
-                    AppComposite = true,
-                    OneBigComposite = false,
-                },
-                xml);
-            */
             xml.AppendLine("</Xml>");
             Console.WriteLine(new string('=', 70));
             Console.WriteLine(xml.ToString());
-            string fileName = Path.Combine(JellyfinFolderName, $"results-{s_timestamp}.xml");
+            string fileName = Path.Combine(s_folderName, $"results-{s_timestamp}.xml");
             File.WriteAllText(fileName, xml.ToString());
             return 0;
         }
@@ -178,7 +157,7 @@ namespace JellyfinBench
         private static string Build(in BuildMode buildMode)
         {
             StringBuilder commandLine = new StringBuilder();
-            commandLine.AppendFormat("build {0}", JellyfinFolderName);
+            commandLine.AppendFormat("build {0}", s_folderName);
             commandLine.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}", buildMode.NetCoreComposite);
             commandLine.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}", buildMode.NetCoreIncludeAspNet);
             commandLine.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}", buildMode.AspNetComposite);
