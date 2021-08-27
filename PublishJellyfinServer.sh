@@ -31,8 +31,6 @@ echo "Jellyfin composite:      $APP_COMPOSITE_VALUE"
 echo "One big composite:       $ONE_BIG_COMPOSITE_VALUE"
 echo "Compile for AVX2:        $APP_AVX2_VALUE"
 
-#  /p:PublishReadyToRunCrossgen2ExtraArgs=--inputbubble%3b--instruction-set:avx2
-
 # First publish the app as non-self-contained; we'll inject
 # the compiled framework to it later.
 PUBLISH_CMD="dotnet publish Jellyfin.Server"
@@ -50,7 +48,7 @@ PUBLISH_CMD+=" -p:PublishReadyToRun=$APP_R2R_VALUE"
 PUBLISH_CMD+=" -p:PublishReadyToRunComposite=$APP_COMPOSITE_VALUE"
 
 if [ "${APP_AVX2_VALUE,,}" == "true" ]; then
-    PUBLISH_CMD+=" -p:PublishReadyToRunCrossgen2ExtraArgs=--instruction-set:avx2"
+    PUBLISH_CMD+=" -p:PublishReadyToRunCrossgen2ExtraArgs=--instruction-set:avx2%3b--inputbubble"
 fi
 
 echo "Publishing Jellyfin.Server: $PUBLISH_CMD"
@@ -76,7 +74,7 @@ if [ "${ONE_BIG_COMPOSITE_VALUE,,}" != "true" ]; then
         NETCORE_CMD+=" --targetarch:x64"
         if [ "${APP_AVX2_VALUE,,}" == "true" ]; then
             NETCORE_CMD+=" --instruction-set:avx2"
-            NETCORE_CMD+=" --input-bubble"
+            NETCORE_CMD+=" --inputbubble"
         fi
         NETCORE_CMD+=" $NETCORE_PATH/*.dll"
         COMPOSITE_FILE="framework";
@@ -93,7 +91,7 @@ if [ "${ONE_BIG_COMPOSITE_VALUE,,}" != "true" ]; then
         cp $NETCORE_PATH/*.dll $OUTPUT_DIR
     fi
     
-    if [ "${ASPNET_COMPOSITE_VALUE,,}" == "true" && "${NETCORE_INCLUDES_ASPNET_VALUE,,}" != "true" ]; then
+    if [[ "${ASPNET_COMPOSITE_VALUE,,}" == "true" && "${NETCORE_INCLUDE_ASPNET_VALUE,,}" != "true" ]]; then
         echo "About to compile asp.net"
         ASPNET_CMD="$CROSSGEN2_PATH"
         ASPNET_CMD+=" -o:$OUTPUT_DIR/aspnetcore.r2r.dll"
@@ -102,7 +100,7 @@ if [ "${ONE_BIG_COMPOSITE_VALUE,,}" != "true" ]; then
         ASPNET_CMD+=" --targetarch:x64"
         if [ "${APP_AVX2_VALUE,,}" == "true" ]; then
             ASPNET_CMD+=" --instruction-set:avx2"
-            ASPNET_CMD+=" --input-bubble"
+            ASPNET_CMD+=" --inputbubble"
         fi
         ASPNET_CMD+=" $ASPNETCORE_PATH/*.dll"
         ASPNET_CMD+=" -r:$NETCORE_PATH/*.dll"
