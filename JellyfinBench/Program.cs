@@ -120,9 +120,9 @@ namespace JellyfinBench
             {
                 s_buildLogFile = buildLogWriter;
                 s_execLogFile = execLogWriter;
-                foreach (BuildMode mode in s_buildModes)
+                for (int modeIndex = 0; modeIndex < s_buildModes.Length; modeIndex++)
                 {
-                    BuildAndRun(mode, xml);
+                    BuildAndRun(s_buildModes[modeIndex], xml, modeIndex, s_buildModes.Length);
                 }
                 s_buildLogFile = null;
                 s_execLogFile = null;
@@ -135,9 +135,9 @@ namespace JellyfinBench
             return 0;
         }
 
-        private static void BuildAndRun(in BuildMode buildMode, StringBuilder xml)
+        private static void BuildAndRun(in BuildMode buildMode, StringBuilder xml, int index, int count)
         {
-            string image = Build(buildMode);
+            string image = Build(buildMode, index, count);
             if (image == null)
             {
                 return;
@@ -159,8 +159,11 @@ namespace JellyfinBench
             xml.AppendLine("</BuildAndRun>");
         }
 
-        private static string Build(in BuildMode buildMode)
+        private static string Build(in BuildMode buildMode, int index, int total)
         {
+            Stopwatch sw = Stopwatch.StartNew();
+            Console.WriteLine("Building configuration: {0} ({1} / {2})", buildMode.Name, index, total);
+
             StringBuilder commandLine = new StringBuilder();
             commandLine.AppendFormat("build {0}", s_folderName);
             commandLine.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}", buildMode.NetCoreComposite);
@@ -178,21 +181,23 @@ namespace JellyfinBench
                 UseShellExecute = false,
             };
 
+            string imageId = null;
             int exitCode = RunProcess(psi, s_buildLogFile, out List<string> stdout);
-            if (exitCode != 0)
+            if (exitCode == 0)
             {
-                return null;
-            }
-            for (int i = stdout.Count - 1; i >= 0 && i >= stdout.Count - 10; i--)
-            {
-                string line = stdout[i];
-                int writingImage = line.IndexOf(WindowsWritingImageString);
-                if (writingImage >= 0)
+                for (int i = stdout.Count - 1; i >= 0 && i >= stdout.Count - 10; i--)
                 {
-                    return line.Substring(writingImage + WindowsWritingImageString.Length);
+                    string line = stdout[i];
+                    int writingImage = line.IndexOf(WindowsWritingImageString);
+                    if (writingImage >= 0)
+                    {
+                        imageId = line.Substring(writingImage + WindowsWritingImageString.Length);
+                        break;
+                    }
                 }
             }
-            return null;
+            Console.WriteLine("Done building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index, total, sw.ElapsedMilliseconds);
+            return imageId;
         }
 
         private static bool Run(string dockerImageId, StringBuilder xml)
