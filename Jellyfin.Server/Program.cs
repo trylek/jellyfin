@@ -187,6 +187,7 @@ namespace Jellyfin.Server
                 }
 
                 appHost.Init();
+                DisplayProcessDuration("APPHOST-INIT");
 
                 var webHost = new WebHostBuilder().ConfigureWebHostBuilder(appHost, serviceCollection, options, startupConfig, appPaths).Build();
 
@@ -204,6 +205,8 @@ namespace Jellyfin.Server
                     _logger.LogError("Kestrel failed to start! This is most likely due to an invalid address or port bind - correct your bind configuration in network.xml and try again.");
                     throw;
                 }
+
+                DisplayProcessDuration("WEBHOST-START-ASYNC");
 
                 await appHost.RunStartupTasksAsync(_tokenSource.Token).ConfigureAwait(false);
 

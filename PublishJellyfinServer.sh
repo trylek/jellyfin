@@ -6,6 +6,11 @@ OUTPUT_DIR=/jellyfin
 rm -rf $OUTPUT_DIR
 mkdir $OUTPUT_DIR
 
+# Unpack pre-recorded nuget cache to speed up project restorations
+cd /
+tar -xvf /repo/nuget-cache.tar >/etc/null
+cd /repo
+
 # Identify .NET Core and ASP.NET framework locations
 DOTNET_ROOT=/usr/share/dotnet
 find $DOTNET_ROOT -name System.Private.CoreLib.dll

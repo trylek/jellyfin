@@ -293,6 +293,18 @@ namespace JellyfinBench
             public int Min;
             public int Max;
 
+            public int NonzeroCount => Math.Max(Count, 1);
+            public int Average => Sum / NonzeroCount;
+            public long Variance
+            {
+                get
+                {
+                    long avg = Average;
+                    return avg * avg + (SumSquared - 2 * avg * Sum) / NonzeroCount;
+                }
+            }
+            public int StandardDeviation => (int)Math.Sqrt(Variance);
+
             public void Add(int value)
             {
                 if (Count == 0)
@@ -318,18 +330,15 @@ namespace JellyfinBench
 
             public void Print(string name)
             {
-                int nonzeroCount = Math.Max(Count, 1);
-                int average = Sum / nonzeroCount;
-                int stddev = (int)Math.Sqrt(average * (long)average + (SumSquared - 2 * average * (long)Sum) / nonzeroCount);
-                Console.WriteLine($"{name,-20}: COUNT={Count,-5} AVG={average,-5} INTERVAL={Max - Min,-5} STDDEV={stddev,-5}");
+                Console.WriteLine($"{name,-20}: COUNT={Count,-5} AVG={Average,-5} INTERVAL={Max - Min,-5} STDDEV={StandardDeviation,-5}");
             }
         }
 
         struct PhaseStatistics
         {
-            ValueStatistics Total;
-            ValueStatistics User;
-            ValueStatistics System;
+            public ValueStatistics Total;
+            public ValueStatistics User;
+            public ValueStatistics System;
 
             public void Add(int total, int user, int system)
             {
@@ -350,6 +359,12 @@ namespace JellyfinBench
         {
             XmlDocument xmlDocument = new XmlDocument();
             xmlDocument.Load(fileName);
+            StringBuilder summary = new StringBuilder();
+            summary.AppendLine("MSECS |     % | MODE");
+            summary.AppendLine("====================");
+            int baselineMsecs = 1;
+            bool isBaseline = true;
+
             foreach (XmlNode buildAndRun in xmlDocument.GetElementsByTagName("BuildAndRun"))
             {
                 string name = buildAndRun.Attributes["Name"].InnerText;
@@ -363,6 +378,8 @@ namespace JellyfinBench
 
                 PhaseStatistics runtime = new PhaseStatistics();
                 PhaseStatistics app = new PhaseStatistics();
+                PhaseStatistics appHostInit = new PhaseStatistics();
+                PhaseStatistics webHostStartAsync = new PhaseStatistics();
 
                 foreach (XmlNode result in buildAndRun["Results"].ChildNodes)
                 {
@@ -379,6 +396,14 @@ namespace JellyfinBench
 
                         case "RUNTIME":
                             runtime.Add(totalMsecs, userMsecs, systemMsecs);
+                            break;
+
+                        case "APPHOST-INIT":
+                            appHostInit.Add(totalMsecs, userMsecs, systemMsecs);
+                            break;
+
+                        case "WEBHOST-START-ASYNC":
+                            webHostStartAsync.Add(totalMsecs, userMsecs, systemMsecs);
                             break;
 
                         default:
@@ -411,10 +436,26 @@ namespace JellyfinBench
 
                 Console.WriteLine(buildModeName.ToString());
                 Console.WriteLine(new string('=', buildModeName.Length));
-                app.Print("APP");
                 runtime.Print("RUNTIME");
+                appHostInit.Print("APPHOST-INIT");
+                webHostStartAsync.Print("WEBHOST-START-ASYNC");
+                app.Print("APP");
                 Console.WriteLine();
+
+                if (isBaseline)
+                {
+                    isBaseline = false;
+                    baselineMsecs = Math.Max(app.Total.Average, 1);
+                }
+                int percentage = (int)(app.Total.Average * 100L / baselineMsecs);
+
+                summary.AppendLine($"{app.Total.Average,5} | {percentage,5} | {name}");
             }
+
+            Console.WriteLine();
+            Console.WriteLine("Summary");
+            Console.WriteLine("=======");
+            Console.Write(summary.ToString());
         }
     }
 }
