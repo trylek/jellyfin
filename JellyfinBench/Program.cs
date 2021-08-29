@@ -10,7 +10,9 @@ namespace JellyfinBench
     class Program
     {
         const string WindowsWritingImageString = "writing image sha256:";
-        const int Iterations = 50;
+        const int Iterations = 10;
+        const bool UseReadyToRun = true;
+        const bool UseTieredCompilation = true;
 
         struct BuildMode
         {
@@ -105,33 +107,38 @@ namespace JellyfinBench
             s_timestamp = DateTime.Now.ToString("MMdd-HHmm");
             s_folderName = Directory.GetCurrentDirectory();
 
+            string xmlFile;
             if (args.Length > 0)
             {
-                ProcessXmlFile(args[0]);
-                return 0;
+                xmlFile = args[0];
+            }
+            else
+            {
+                StringBuilder xml = new StringBuilder();
+                xml.AppendLine("<Xml>");
+                string buildLogFile = Path.Combine(s_folderName, $"jellyfin-build-{s_timestamp}.log");
+                string execLogFile = Path.Combine(s_folderName, $"jellyfin-run-{s_timestamp}.log");
+                using (StreamWriter buildLogWriter = new StreamWriter(buildLogFile))
+                using (StreamWriter execLogWriter = new StreamWriter(execLogFile))
+                {
+                    s_buildLogFile = buildLogWriter;
+                    s_execLogFile = execLogWriter;
+                    for (int modeIndex = 0; modeIndex < s_buildModes.Length; modeIndex++)
+                    {
+                        BuildAndRun(s_buildModes[modeIndex], xml, modeIndex, s_buildModes.Length);
+                    }
+                    s_buildLogFile = null;
+                    s_execLogFile = null;
+                }
+                xml.AppendLine("</Xml>");
+                Console.WriteLine(new string('=', 70));
+                Console.WriteLine(xml.ToString());
+                xmlFile = Path.Combine(s_folderName, $"results-{s_timestamp}.xml");
+                File.WriteAllText(xmlFile, xml.ToString());
             }
 
-            StringBuilder xml = new StringBuilder();
-            xml.AppendLine("<Xml>");
-            string buildLogFile = Path.Combine(s_folderName, $"jellyfin-build-{s_timestamp}.log");
-            string execLogFile = Path.Combine(s_folderName, $"jellyfin-run-{s_timestamp}.log");
-            using (StreamWriter buildLogWriter = new StreamWriter(buildLogFile))
-            using (StreamWriter execLogWriter = new StreamWriter(execLogFile))
-            {
-                s_buildLogFile = buildLogWriter;
-                s_execLogFile = execLogWriter;
-                for (int modeIndex = 0; modeIndex < s_buildModes.Length; modeIndex++)
-                {
-                    BuildAndRun(s_buildModes[modeIndex], xml, modeIndex, s_buildModes.Length);
-                }
-                s_buildLogFile = null;
-                s_execLogFile = null;
-            }
-            xml.AppendLine("</Xml>");
-            Console.WriteLine(new string('=', 70));
-            Console.WriteLine(xml.ToString());
-            string fileName = Path.Combine(s_folderName, $"results-{s_timestamp}.xml");
-            File.WriteAllText(fileName, xml.ToString());
+            string resultsFile = Path.ChangeExtension(xmlFile, "results.txt");
+            ProcessXmlFile(xmlFile, resultsFile);
             return 0;
         }
 
@@ -150,6 +157,8 @@ namespace JellyfinBench
             xml.AppendFormat("<AppComposite>{0}</AppComposite>\n", buildMode.AppComposite);
             xml.AppendFormat("<OneBigComposite>{0}</OneBigComposite>\n", buildMode.OneBigComposite);
             xml.AppendFormat("<AppAVX2>{0}</AppAVX2>\n", buildMode.AppAVX2);
+            xml.AppendFormat("<UseTieredCompilation>{0}</UseTieredCompilation>\n", UseTieredCompilation);
+            xml.AppendFormat("<UseReadyToRun>{0}</UseReadyToRun>\n", UseReadyToRun);
             xml.AppendLine("<Results>");
             for (int iteration = 0; iteration < Iterations; iteration++)
             {
@@ -204,6 +213,8 @@ namespace JellyfinBench
         {
             StringBuilder commandLine = new StringBuilder();
             commandLine.Append("run");
+            commandLine.AppendFormat(" --env COMPlus_TieredCompilation={0}", UseTieredCompilation ? "1" : "0");
+            commandLine.AppendFormat(" --env COMPlus_ReadyToRun={0}", UseReadyToRun ? "1" : "0");
             commandLine.AppendFormat(" -it {0}", dockerImageId);
 
             ProcessStartInfo psi = new ProcessStartInfo()
@@ -328,9 +339,9 @@ namespace JellyfinBench
                 SumSquared += (long)value * (long)value;
             }
 
-            public void Print(string name)
+            public void WriteTo(StringBuilder builder, string name)
             {
-                Console.WriteLine($"{name,-20}: COUNT={Count,-5} AVG={Average,-5} INTERVAL={Max - Min,-5} STDDEV={StandardDeviation,-5}");
+                builder.AppendLine($"{name,-30}: COUNT={Count,-5} AVG={Average,-5} INTERVAL={Max - Min,-5} STDDEV={StandardDeviation,-5}");
             }
         }
 
@@ -347,22 +358,33 @@ namespace JellyfinBench
                 System.Add(system);
             }
 
-            public void Print(string name)
+            public void WriteTo(StringBuilder builder, string name)
             {
-                Total.Print(name + " (total)");
-                User.Print(name + " (user)");
-                System.Print(name + " (system)");
+                Total.WriteTo(builder, name + " (total)");
+                User.WriteTo(builder, name + " (user)");
+                System.WriteTo(builder, name + " (system)");
             }
         }
 
-        private static void ProcessXmlFile(string fileName)
+        private static void ProcessXmlFile(string xmlFile, string resultsFile)
         {
             XmlDocument xmlDocument = new XmlDocument();
-            xmlDocument.Load(fileName);
+            xmlDocument.Load(xmlFile);
+
+            StringBuilder details = new StringBuilder();
+            details.AppendLine("Details");
+            details.AppendLine("=======");
+
             StringBuilder summary = new StringBuilder();
-            summary.AppendLine("MSECS |     % | MODE");
-            summary.AppendLine("====================");
-            int baselineMsecs = 1;
+            summary.AppendLine("Summary");
+            summary.AppendLine("=======");
+            summary.AppendLine("TOTAL |  %  | RUNTIME |  %  | APPHOST |  %  | WEBHOST |  %  |   APP   |  %  | MODE");
+            summary.AppendLine("==================================================================================");
+            int baselineTotal = 0;
+            int baselineRuntime = 0;
+            int baselineApphostDelta = 0;
+            int baselineWebhostDelta = 0;
+            int baselineAppDelta = 0;
             bool isBaseline = true;
 
             foreach (XmlNode buildAndRun in xmlDocument.GetElementsByTagName("BuildAndRun"))
@@ -375,6 +397,8 @@ namespace JellyfinBench
                 bool appComposite = bool.Parse(buildAndRun["AppComposite"].InnerText);
                 bool oneBigComposite = bool.Parse(buildAndRun["OneBigComposite"].InnerText);
                 bool appAvx2 = bool.Parse(buildAndRun["AppAVX2"].InnerText);
+                bool useTieredCompilation = bool.Parse(buildAndRun["UseTieredCompilation"].InnerText);
+                bool useReadyToRun = bool.Parse(buildAndRun["UseReadyToRun"].InnerText);
 
                 PhaseStatistics runtime = new PhaseStatistics();
                 PhaseStatistics app = new PhaseStatistics();
@@ -433,29 +457,47 @@ namespace JellyfinBench
                 {
                     buildModeName.Append(" / AVX2");
                 }
+                buildModeName.AppendFormat(" / TC {0}", useTieredCompilation ? "ON" : "OFF");
+                buildModeName.AppendFormat(" / RTR {0}", useReadyToRun ? "ON" : "OFF");
 
-                Console.WriteLine(buildModeName.ToString());
-                Console.WriteLine(new string('=', buildModeName.Length));
-                runtime.Print("RUNTIME");
-                appHostInit.Print("APPHOST-INIT");
-                webHostStartAsync.Print("WEBHOST-START-ASYNC");
-                app.Print("APP");
-                Console.WriteLine();
+                details.AppendLine(buildModeName.ToString());
+                details.AppendLine(new string('=', buildModeName.Length));
+                runtime.WriteTo(details, "RUNTIME");
+                appHostInit.WriteTo(details, "APPHOST-INIT");
+                webHostStartAsync.WriteTo(details, "WEBHOST-START-ASYNC");
+                app.WriteTo(details, "APP");
+                details.AppendLine();
 
+                int apphostDelta = appHostInit.Total.Average - runtime.Total.Average;
+                int webhostDelta = webHostStartAsync.Total.Average - appHostInit.Total.Average;
+                int appDelta = app.Total.Average - webHostStartAsync.Total.Average;
                 if (isBaseline)
                 {
                     isBaseline = false;
-                    baselineMsecs = Math.Max(app.Total.Average, 1);
+                    baselineTotal = app.Total.Average;
+                    baselineRuntime = runtime.Total.Average;
+                    baselineApphostDelta = apphostDelta;
+                    baselineWebhostDelta = webhostDelta;
+                    baselineAppDelta = appDelta;
                 }
-                int percentage = (int)(app.Total.Average * 100L / baselineMsecs);
 
-                summary.AppendLine($"{app.Total.Average,5} | {percentage,5} | {name}");
+                summary.AppendFormat("{0,5} | {1,3} | ", app.Total.Average, Percentage(app.Total.Average, baselineTotal));
+                summary.AppendFormat("{0,7} | {1,3} | ", runtime.Total.Average, Percentage(runtime.Total.Average, baselineRuntime));
+                summary.AppendFormat("{0,7} | {1,3} | ", apphostDelta, Percentage(apphostDelta, baselineApphostDelta));
+                summary.AppendFormat("{0,7} | {1,3} | ", webhostDelta, Percentage(webhostDelta, baselineWebhostDelta));
+                summary.AppendFormat("{0,7} | {1,3} | ", appDelta, Percentage(appDelta, baselineAppDelta));
+                summary.AppendLine(name);
             }
 
-            Console.WriteLine();
-            Console.WriteLine("Summary");
-            Console.WriteLine("=======");
-            Console.Write(summary.ToString());
+            string results = summary.ToString() + Environment.NewLine + details.ToString();
+
+            Console.Write(results);
+            File.WriteAllText(resultsFile, results);
+        }
+
+        private static int Percentage(int numerator, int denominator)
+        {
+            return (int)(numerator * 100.0 / Math.Max(denominator, 1));
         }
     }
 }
