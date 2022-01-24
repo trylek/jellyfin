@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime;
 using System.Text;
 using System.Xml;
 
@@ -10,9 +11,7 @@ namespace JellyfinBench
     class Program
     {
         const string WindowsWritingImageString = "writing image sha256:";
-        const int Iterations = 10;
-        const bool UseReadyToRun = true;
-        const bool UseTieredCompilation = true;
+        const int Iterations = 5;
 
         struct BuildMode
         {
@@ -25,6 +24,8 @@ namespace JellyfinBench
             public bool AppComposite;
             public bool OneBigComposite;
             public bool AppAVX2;
+            public bool UseReadyToRun;
+            public bool UseTieredCompilation;
         }
 
         private static BuildMode[] s_buildModes =
@@ -38,49 +39,8 @@ namespace JellyfinBench
                 AppR2R = false,
                 AppComposite = false,
                 OneBigComposite = false,
-            },
-            new BuildMode()
-            {
-                Name = "r2r",
-                NetCoreComposite = false,
-                NetCoreIncludeAspNet = false,
-                AspNetComposite = false,
-                AppR2R = true,
-                AppComposite = false,
-                OneBigComposite = false,
-            },
-            new BuildMode()
-            {
-                Name = "app-composite-avx2",
-                NetCoreComposite = false,
-                NetCoreIncludeAspNet = false,
-                AspNetComposite = false,
-                AppR2R = true,
-                AppComposite = true,
-                OneBigComposite = false,
-                AppAVX2 = true,
-            },
-            new BuildMode()
-            {
-                Name = "one-big-composite-avx2",
-                NetCoreComposite = false,
-                NetCoreIncludeAspNet = false,
-                AspNetComposite = false,
-                AppR2R = true,
-                AppComposite = true,
-                OneBigComposite = true,
-                AppAVX2 = true,
-            },
-            new BuildMode()
-            {
-                Name = "r2r-platform-composite-avx2",
-                NetCoreComposite = true,
-                NetCoreIncludeAspNet = true,
-                AspNetComposite = true,
-                AppR2R = true,
-                AppComposite = true,
-                OneBigComposite = false,
-                AppAVX2 = true,
+                UseReadyToRun = true,
+                UseTieredCompilation = true,
             },
             new BuildMode()
             {
@@ -92,15 +52,67 @@ namespace JellyfinBench
                 AppComposite = false,
                 OneBigComposite = false,
                 AppAVX2 = true,
+                UseReadyToRun = true,
+                UseTieredCompilation = true,
+            },
+            new BuildMode()
+            {
+                Name = "baseline/noR2R",
+                NetCoreComposite = false,
+                NetCoreIncludeAspNet = false,
+                AspNetComposite = false,
+                AppR2R = false,
+                AppComposite = false,
+                OneBigComposite = false,
+                UseReadyToRun = false,
+                UseTieredCompilation = true,
+            },
+            new BuildMode()
+            {
+                Name = "jit-platform-composite-avx2/noR2R",
+                NetCoreComposite = true,
+                NetCoreIncludeAspNet = true,
+                AspNetComposite = true,
+                AppR2R = false,
+                AppComposite = false,
+                OneBigComposite = false,
+                AppAVX2 = true,
+                UseReadyToRun = false,
+                UseTieredCompilation = true,
+            },
+            new BuildMode()
+            {
+                Name = "baseline/noTier",
+                NetCoreComposite = false,
+                NetCoreIncludeAspNet = false,
+                AspNetComposite = false,
+                AppR2R = false,
+                AppComposite = false,
+                OneBigComposite = false,
+                UseReadyToRun = true,
+                UseTieredCompilation = false,
+            },
+            new BuildMode()
+            {
+                Name = "jit-platform-composite-avx2/noTier",
+                NetCoreComposite = true,
+                NetCoreIncludeAspNet = true,
+                AspNetComposite = true,
+                AppR2R = false,
+                AppComposite = false,
+                OneBigComposite = false,
+                AppAVX2 = true,
+                UseReadyToRun = true,
+                UseTieredCompilation = false,
             },
         };
 
-        static string s_folderName;
+        static string? s_folderName;
 
-        static string s_timestamp;
+        static string? s_timestamp;
 
-        static TextWriter s_buildLogFile;
-        static TextWriter s_execLogFile;
+        static TextWriter? s_buildLogFile;
+        static TextWriter? s_execLogFile;
 
         static int Main(string[] args)
         {
@@ -157,12 +169,12 @@ namespace JellyfinBench
             xml.AppendFormat("<AppComposite>{0}</AppComposite>\n", buildMode.AppComposite);
             xml.AppendFormat("<OneBigComposite>{0}</OneBigComposite>\n", buildMode.OneBigComposite);
             xml.AppendFormat("<AppAVX2>{0}</AppAVX2>\n", buildMode.AppAVX2);
-            xml.AppendFormat("<UseTieredCompilation>{0}</UseTieredCompilation>\n", UseTieredCompilation);
-            xml.AppendFormat("<UseReadyToRun>{0}</UseReadyToRun>\n", UseReadyToRun);
+            xml.AppendFormat("<UseTieredCompilation>{0}</UseTieredCompilation>\n", buildMode.UseTieredCompilation);
+            xml.AppendFormat("<UseReadyToRun>{0}</UseReadyToRun>\n", buildMode.UseReadyToRun);
             xml.AppendLine("<Results>");
             for (int iteration = 0; iteration < Iterations; iteration++)
             {
-                Run(image, xml);
+                Run(buildMode, image, xml);
             }
             xml.AppendLine("</Results>");
             xml.AppendLine("</BuildAndRun>");
@@ -170,6 +182,7 @@ namespace JellyfinBench
 
         private static string Build(in BuildMode buildMode, int index, int total)
         {
+            /*
             Stopwatch sw = Stopwatch.StartNew();
             Console.WriteLine("Building configuration: {0} ({1} / {2})", buildMode.Name, index, total);
 
@@ -206,25 +219,37 @@ namespace JellyfinBench
                 }
             }
             Console.WriteLine("Done building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index, total, sw.ElapsedMilliseconds);
-            return imageId;
+            */
+
+            string outputDir = @"D:\triage\composite\webapi\bin\Release\net6.0\win-x64\publish";
+            if (buildMode.NetCoreComposite)
+            {
+                outputDir = Path.Combine(outputDir, "composite");
+            }
+
+            return Path.Combine(outputDir, "webapi.dll");
         }
 
-        private static bool Run(string dockerImageId, StringBuilder xml)
+        private static bool Run(BuildMode buildMode, string dockerImageId, StringBuilder xml)
         {
+            /*
             StringBuilder commandLine = new StringBuilder();
             commandLine.Append("run");
             commandLine.AppendFormat(" --env COMPlus_TieredCompilation={0}", UseTieredCompilation ? "1" : "0");
             commandLine.AppendFormat(" --env COMPlus_ReadyToRun={0}", UseReadyToRun ? "1" : "0");
             commandLine.AppendFormat(" -it {0}", dockerImageId);
+            */
 
             ProcessStartInfo psi = new ProcessStartInfo()
             {
-                FileName = "docker",
-                Arguments = commandLine.ToString(),
+                FileName = "dotnet",
+                Arguments = dockerImageId,
                 UseShellExecute = false,
             };
+            psi.EnvironmentVariables.Add("COMPlus_TieredCompilation", buildMode.UseTieredCompilation ? "1" : "0");
+            psi.EnvironmentVariables.Add("COMPlus_ReadyToRun", buildMode.UseReadyToRun ? "1" : "0");
 
-            int exitCode = RunProcess(psi, s_execLogFile, out List<string> stdout);
+            int exitCode = RunProcess(psi, s_execLogFile!, out List<string> stdout);
             if (exitCode != 143)
             {
                 return false;
@@ -260,7 +285,7 @@ namespace JellyfinBench
                 List<string> stdoutLines = new List<string>();
                 process.OutputDataReceived += new DataReceivedEventHandler((object sender, DataReceivedEventArgs eventArgs) =>
                 {
-                    string data = eventArgs?.Data;
+                    string? data = eventArgs?.Data;
                     if (!string.IsNullOrEmpty(data))
                     {
                         Console.WriteLine(data);
@@ -270,7 +295,7 @@ namespace JellyfinBench
                 });
                 process.ErrorDataReceived += new DataReceivedEventHandler((object sender, DataReceivedEventArgs eventArgs) =>
                 {
-                    string data = eventArgs?.Data;
+                    string? data = eventArgs?.Data;
                     if (!string.IsNullOrEmpty(data))
                     {
                         Console.Error.WriteLine(data);
@@ -345,7 +370,7 @@ namespace JellyfinBench
             }
         }
 
-        struct PhaseStatistics
+        class PhaseStatistics
         {
             public ValueStatistics Total;
             public ValueStatistics User;
@@ -361,8 +386,8 @@ namespace JellyfinBench
             public void WriteTo(StringBuilder builder, string name)
             {
                 Total.WriteTo(builder, name + " (total)");
-                User.WriteTo(builder, name + " (user)");
-                System.WriteTo(builder, name + " (system)");
+                //User.WriteTo(builder, name + " (user)");
+                //System.WriteTo(builder, name + " (system)");
             }
         }
 
@@ -378,61 +403,50 @@ namespace JellyfinBench
             StringBuilder summary = new StringBuilder();
             summary.AppendLine("Summary");
             summary.AppendLine("=======");
-            summary.AppendLine("TOTAL |  %  | RUNTIME |  %  | APPHOST |  %  | WEBHOST |  %  |   APP   |  %  | MODE");
-            summary.AppendLine("==================================================================================");
-            int baselineTotal = 0;
-            int baselineRuntime = 0;
-            int baselineApphostDelta = 0;
-            int baselineWebhostDelta = 0;
-            int baselineAppDelta = 0;
             bool isBaseline = true;
+            Dictionary<string, PhaseStatistics>? baselinePhaseStatistics = null;
 
             foreach (XmlNode buildAndRun in xmlDocument.GetElementsByTagName("BuildAndRun"))
             {
-                string name = buildAndRun.Attributes["Name"].InnerText;
-                bool netCoreComposite = bool.Parse(buildAndRun["NetCoreComposite"].InnerText);
-                bool netCoreIncludeAspNet = bool.Parse(buildAndRun["NetCoreIncludeAspNet"].InnerText);
-                bool aspNetComposite = bool.Parse(buildAndRun["AspNetComposite"].InnerText);
-                bool appR2R = bool.Parse(buildAndRun["AppR2R"].InnerText);
-                bool appComposite = bool.Parse(buildAndRun["AppComposite"].InnerText);
-                bool oneBigComposite = bool.Parse(buildAndRun["OneBigComposite"].InnerText);
-                bool appAvx2 = bool.Parse(buildAndRun["AppAVX2"].InnerText);
-                bool useTieredCompilation = bool.Parse(buildAndRun["UseTieredCompilation"].InnerText);
-                bool useReadyToRun = bool.Parse(buildAndRun["UseReadyToRun"].InnerText);
+                string name = buildAndRun!.Attributes!["Name"]!.InnerText!;
+                bool netCoreComposite = bool.Parse(buildAndRun!["NetCoreComposite"]!.InnerText!);
+                bool netCoreIncludeAspNet = bool.Parse(buildAndRun!["NetCoreIncludeAspNet"]!.InnerText!);
+                bool aspNetComposite = bool.Parse(buildAndRun!["AspNetComposite"]!.InnerText!);
+                bool appR2R = bool.Parse(buildAndRun!["AppR2R"]!.InnerText!);
+                bool appComposite = bool.Parse(buildAndRun!["AppComposite"]!.InnerText!);
+                bool oneBigComposite = bool.Parse(buildAndRun!["OneBigComposite"]!.InnerText!);
+                bool appAvx2 = bool.Parse(buildAndRun!["AppAVX2"]!.InnerText!);
+                bool useTieredCompilation = bool.Parse(buildAndRun!["UseTieredCompilation"]!.InnerText!);
+                bool useReadyToRun = bool.Parse(buildAndRun!["UseReadyToRun"]!.InnerText!);
 
-                PhaseStatistics runtime = new PhaseStatistics();
-                PhaseStatistics app = new PhaseStatistics();
-                PhaseStatistics appHostInit = new PhaseStatistics();
-                PhaseStatistics webHostStartAsync = new PhaseStatistics();
+                Dictionary<string, PhaseStatistics> phaseStatistics = new Dictionary<string, PhaseStatistics>();
+                List<string> phaseOrdering = new List<string>();
 
-                foreach (XmlNode result in buildAndRun["Results"].ChildNodes)
+                foreach (XmlNode result in buildAndRun!["Results"]!.ChildNodes!)
                 {
-                    string phase = result.Attributes["Phase"].InnerText;
-                    int totalMsecs = int.Parse(result["TotalTimeMsec"].InnerText);
-                    int userMsecs = int.Parse(result["UserTimeMsec"].InnerText);
-                    int systemMsecs = int.Parse(result["SystemTimeMsec"].InnerText);
+                    string phase = result.Attributes!["Phase"]!.InnerText!;
+                    int totalMsecs = int.Parse(result!["TotalTimeMsec"]!.InnerText!);
+                    int userMsecs = int.Parse(result!["UserTimeMsec"]!.InnerText!);
+                    int systemMsecs = int.Parse(result!["SystemTimeMsec"]!.InnerText!);
 
-                    switch (phase)
+                    if (!phaseStatistics.TryGetValue(phase, out PhaseStatistics? statistics))
                     {
-                        case "APP":
-                            app.Add(totalMsecs, userMsecs, systemMsecs);
-                            break;
-
-                        case "RUNTIME":
-                            runtime.Add(totalMsecs, userMsecs, systemMsecs);
-                            break;
-
-                        case "APPHOST-INIT":
-                            appHostInit.Add(totalMsecs, userMsecs, systemMsecs);
-                            break;
-
-                        case "WEBHOST-START-ASYNC":
-                            webHostStartAsync.Add(totalMsecs, userMsecs, systemMsecs);
-                            break;
-
-                        default:
-                            throw new NotImplementedException("Unknown phase: " + phase);
+                        statistics = new PhaseStatistics();
+                        phaseStatistics.Add(phase, statistics);
+                        phaseOrdering.Add(phase);
+                        if (isBaseline)
+                        {
+                            summary.AppendFormat("{0,-7} |  %  | ", phase);
+                        }
                     }
+                    statistics.Add(totalMsecs, userMsecs, systemMsecs);
+                }
+
+                if (isBaseline)
+                {
+                    summary.AppendLine("TOTAL   |  %  | MODE");
+                    summary.AppendLine(new string('=', 16 * phaseOrdering.Count + 20));
+                    baselinePhaseStatistics = phaseStatistics;
                 }
 
                 StringBuilder buildModeName = new StringBuilder();
@@ -462,34 +476,33 @@ namespace JellyfinBench
 
                 details.AppendLine(buildModeName.ToString());
                 details.AppendLine(new string('=', buildModeName.Length));
-                runtime.WriteTo(details, "RUNTIME");
-                appHostInit.WriteTo(details, "APPHOST-INIT");
-                webHostStartAsync.WriteTo(details, "WEBHOST-START-ASYNC");
-                app.WriteTo(details, "APP");
-                details.AppendLine();
-
-                int apphostDelta = appHostInit.Total.Average - runtime.Total.Average;
-                int webhostDelta = webHostStartAsync.Total.Average - appHostInit.Total.Average;
-                int appDelta = app.Total.Average - webHostStartAsync.Total.Average;
-                if (isBaseline)
+                int prevAverage = 0;
+                int prevBaselineAverage = 0;
+                for (int phaseIndex = 0; phaseIndex < phaseOrdering.Count; phaseIndex++)
                 {
-                    isBaseline = false;
-                    baselineTotal = app.Total.Average;
-                    baselineRuntime = runtime.Total.Average;
-                    baselineApphostDelta = apphostDelta;
-                    baselineWebhostDelta = webhostDelta;
-                    baselineAppDelta = appDelta;
+                    string phase = phaseOrdering[phaseIndex];
+                    PhaseStatistics stat = phaseStatistics[phase];
+                    stat.WriteTo(details, phase);
+                    int average = stat.Total.Average;
+                    int delta = Math.Max(average - prevAverage, 1);
+                    PhaseStatistics baselineStat = baselinePhaseStatistics![phase];
+                    int baselineAverage = baselineStat.Total.Average;
+                    int baselineDelta = Math.Max(baselineAverage - prevBaselineAverage, 1);
+                    prevAverage = average;
+                    prevBaselineAverage = baselineAverage;
+                    summary.AppendFormat("{0,7} | {1,3} | ", average, Percentage(delta, baselineDelta));
                 }
-
-                summary.AppendFormat("{0,5} | {1,3} | ", app.Total.Average, Percentage(app.Total.Average, baselineTotal));
-                summary.AppendFormat("{0,7} | {1,3} | ", runtime.Total.Average, Percentage(runtime.Total.Average, baselineRuntime));
-                summary.AppendFormat("{0,7} | {1,3} | ", apphostDelta, Percentage(apphostDelta, baselineApphostDelta));
-                summary.AppendFormat("{0,7} | {1,3} | ", webhostDelta, Percentage(webhostDelta, baselineWebhostDelta));
-                summary.AppendFormat("{0,7} | {1,3} | ", appDelta, Percentage(appDelta, baselineAppDelta));
+                string lastPhase = phaseOrdering[phaseOrdering.Count - 1];
+                PhaseStatistics lastStat = phaseStatistics[lastPhase];
+                PhaseStatistics lastBaseline = baselinePhaseStatistics![lastPhase];
+                summary.AppendFormat("{0,7} | {1,3} | ", lastStat.Total.Average, Percentage(lastStat.Total.Average, lastBaseline.Total.Average));
+                details.AppendLine();
                 summary.AppendLine(name);
+
+                isBaseline = false;
             }
 
-            string results = summary.ToString() + Environment.NewLine + details.ToString();
+            string results = details.ToString() + Environment.NewLine + summary.ToString();
 
             Console.Write(results);
             File.WriteAllText(resultsFile, results);
