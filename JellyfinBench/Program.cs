@@ -11,7 +11,8 @@ namespace JellyfinBench
     class Program
     {
         const string WindowsWritingImageString = "writing image sha256:";
-        const int Iterations = 5;
+        const int WarmupIterations = 2;
+        const int Iterations = 10;
 
         struct BuildMode
         {
@@ -172,6 +173,11 @@ namespace JellyfinBench
             xml.AppendFormat("<UseTieredCompilation>{0}</UseTieredCompilation>\n", buildMode.UseTieredCompilation);
             xml.AppendFormat("<UseReadyToRun>{0}</UseReadyToRun>\n", buildMode.UseReadyToRun);
             xml.AppendLine("<Results>");
+            StringBuilder warmupBuilder = new StringBuilder();
+            for (int warmupIteration = 0; Iterations < WarmupIterations; warmupIteration++)
+            {
+                Run(buildMode, image, warmupBuilder);
+            }
             for (int iteration = 0; iteration < Iterations; iteration++)
             {
                 Run(buildMode, image, xml);
