@@ -66,8 +66,8 @@ if [ "${ONE_BIG_COMPOSITE_VALUE,,}" != "true" ]; then
     # rm -rf /testapp
     
     # Locate crossgen2
-    # CROSSGEN2_PATH=`find / -name crossgen2`
-    CROSSGEN2_PATH=/root/crossgen2/crossgen2
+    CROSSGEN2_PATH=`find / -name crossgen2`
+    # CROSSGEN2_PATH=/root/crossgen2/crossgen2
     
     echo "Using Crossgen2 path: $CROSSGEN2_PATH"
     

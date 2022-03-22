@@ -189,16 +189,26 @@ namespace Jellyfin.Server
                 appHost.Init();
                 DisplayProcessDuration("APPHOST-INIT");
 
+                Console.WriteLine("Before creating WebHost...");
                 var webHost = new WebHostBuilder().ConfigureWebHostBuilder(appHost, serviceCollection, options, startupConfig, appPaths).Build();
+                Console.WriteLine("After creating WebHost...");
 
                 // Re-use the web host service provider in the app host since ASP.NET doesn't allow a custom service collection.
+                Console.WriteLine("Before AppHost.ServiceProvider...");
                 appHost.ServiceProvider = webHost.Services;
+                Console.WriteLine("After AppHost.ServiceProvider...");
+                Console.WriteLine("Before InitializeServices() Await...");
                 await appHost.InitializeServices().ConfigureAwait(false);
+                Console.WriteLine("After InitializeServices() Await...");
+                Console.WriteLine("Before MigrationRunner Run()...");
                 Migrations.MigrationRunner.Run(appHost, _loggerFactory);
+                Console.WriteLine("After MigrationRunner Run()...");
 
                 try
                 {
+                    Console.WriteLine("Before StartAsync() Await...");
                     await webHost.StartAsync().ConfigureAwait(false);
+                    Console.WriteLine("After StartAsync() Await...");
                 }
                 catch
                 {
