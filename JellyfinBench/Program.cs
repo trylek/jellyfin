@@ -157,7 +157,7 @@ namespace JellyfinBench
 
         private static void BuildAndRun(in BuildMode buildMode, StringBuilder xml, int index, int count)
         {
-            string image = Build(buildMode, index, count);
+            string? image = Build(buildMode, index, count);
             if (image == null)
             {
                 return;
@@ -174,7 +174,7 @@ namespace JellyfinBench
             xml.AppendFormat("<UseReadyToRun>{0}</UseReadyToRun>\n", buildMode.UseReadyToRun);
             xml.AppendLine("<Results>");
             StringBuilder warmupBuilder = new StringBuilder();
-            for (int warmupIteration = 0; Iterations < WarmupIterations; warmupIteration++)
+            for (int warmupIteration = 0; warmupIteration < WarmupIterations; warmupIteration++)
             {
                 Run(buildMode, image, warmupBuilder);
             }
@@ -186,9 +186,8 @@ namespace JellyfinBench
             xml.AppendLine("</BuildAndRun>");
         }
 
-        private static string Build(in BuildMode buildMode, int index, int total)
+        private static string? Build(in BuildMode buildMode, int index, int total)
         {
-            /*
             Stopwatch sw = Stopwatch.StartNew();
             Console.WriteLine("Building configuration: {0} ({1} / {2})", buildMode.Name, index, total);
 
@@ -209,8 +208,8 @@ namespace JellyfinBench
                 UseShellExecute = false,
             };
 
-            string imageId = null;
-            int exitCode = RunProcess(psi, s_buildLogFile, out List<string> stdout);
+            string? imageId = null;
+            int exitCode = RunProcess(psi, s_buildLogFile!, out List<string> stdout);
             if (exitCode == 0)
             {
                 for (int i = stdout.Count - 1; i >= 0 && i >= stdout.Count - 10; i--)
@@ -225,8 +224,9 @@ namespace JellyfinBench
                 }
             }
             Console.WriteLine("Done building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index, total, sw.ElapsedMilliseconds);
-            */
+            return imageId;
 
+            /*
             string outputDir = @"D:\triage\composite\webapi\bin\Release\net6.0\win-x64\publish";
             if (buildMode.NetCoreComposite)
             {
@@ -234,21 +234,20 @@ namespace JellyfinBench
             }
 
             return Path.Combine(outputDir, "webapi.dll");
+            */
         }
 
         private static bool Run(BuildMode buildMode, string dockerImageId, StringBuilder xml)
         {
-            /*
             StringBuilder commandLine = new StringBuilder();
             commandLine.Append("run");
-            commandLine.AppendFormat(" --env COMPlus_TieredCompilation={0}", UseTieredCompilation ? "1" : "0");
-            commandLine.AppendFormat(" --env COMPlus_ReadyToRun={0}", UseReadyToRun ? "1" : "0");
+            commandLine.AppendFormat(" --env COMPlus_TieredCompilation={0}", buildMode.UseTieredCompilation ? "1" : "0");
+            commandLine.AppendFormat(" --env COMPlus_ReadyToRun={0}", buildMode.UseReadyToRun ? "1" : "0");
             commandLine.AppendFormat(" -it {0}", dockerImageId);
-            */
 
             ProcessStartInfo psi = new ProcessStartInfo()
             {
-                FileName = "dotnet",
+                FileName = "docker",
                 Arguments = dockerImageId,
                 UseShellExecute = false,
             };
