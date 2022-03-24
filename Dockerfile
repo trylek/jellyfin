@@ -93,10 +93,30 @@ FROM app
 
 COPY --from=builder /jellyfin /jellyfin
 COPY --from=web-builder /dist /jellyfin/jellyfin-web
+# COPY Core_Root /Core_Root
+
+RUN apt-get update -y \
+ && apt-get install -y wget \
+ && cd / \
+ && mkdir dotnet7p \
+ && cd dotnet7p \
+ && wget https://aka.ms/dotnet/7.0.1xx/daily/dotnet-sdk-linux-x64.tar.gz \
+ && tar -xf dotnet-sdk-linux-x64.tar.gz \
+ && cd ..
 
 EXPOSE 8096
 VOLUME /cache /config /media
-ENTRYPOINT ["./jellyfin/jellyfin", \
+# RUN ls ./jellyfin
+ENTRYPOINT ["./dotnet7p/dotnet", "/jellyfin/jellyfin.dll", \
     "--datadir", "/config", \
     "--cachedir", "/cache", \
     "--ffmpeg", "/usr/lib/jellyfin-ffmpeg/ffmpeg"]
+
+# wget https://aka.ms/dotnet/7.0/daily/dotnet-runtime-deps-x64.deb
+# wget https://aka.ms/dotnet/7.0/daily/dotnet-host-x64.deb
+# wget https://aka.ms/dotnet/7.0/daily/dotnet-apphost-pack-x64.deb
+# wget https://aka.ms/dotnet/7.0/daily/dotnet-hostfxr-x64.deb
+# wget https://aka.ms/dotnet/7.0/daily/dotnet-targeting-pack-x64.deb
+# wget https://aka.ms/dotnet/7.0/daily/dotnet-runtime-x64.deb
+# wget https://aka.ms/dotnet/7.0.1xx/daily/dotnet-sdk-x64.deb
+
