@@ -4,16 +4,66 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml;
 
 namespace JellyfinBench
 {
+    class ListyArray<T>
+    {
+        private T[] Array;
+        private int Index;
+        public int Size;
+
+        public ListyArray(T[] arrToWrap)
+        {
+            Array = arrToWrap;
+            Index = 0;
+            Size = arrToWrap.Length;
+        }
+
+        public bool HasNext() { return (Index < Size-1); }
+        public void MoveNext() { Index++; }
+        public T GetCurrent() { return Array[Index]; }
+        public T GetNext() { return Array[Index+1]; }
+        public T GetPrevious() { return Array[Index-1]; }
+    }
+
+    class SimpleCommandLineParser
+    {
+        public SimpleCommandLineParser() {}
+
+        public Dictionary<string, string> ParseOptions(string[] args)
+        {
+            var parsedFlags = new Dictionary<string, string>();
+            ListyArray<string> argsList = new ListyArray<string>(args);
+
+            while (argsList.HasNext())
+            {
+                string val = argsList.GetCurrent();
+
+                if (!val.StartsWith("-"))
+                {
+                    argsList.MoveNext();
+                    continue;
+                }
+
+                string flag = val.TrimStart('-');
+                string next = argsList.HasNext() ? argsList.GetNext().Trim() : "";
+
+                parsedFlags.Add(flag, next.StartsWith("-") ? "" : next);
+                argsList.MoveNext();
+            }
+            return parsedFlags;
+        }
+    }
+
     class Program
     {
         const string WindowsWritingImageString = "writing image sha256:";
-        static int WarmupIterations;
-        static int Iterations;
-        static int Configs;
+        static int WarmupIterations = 2;
+        static int Iterations = 10;
+        static int Configs = 0;
         // const bool UseReadyToRun = true;
         // const bool UseTieredCompilation = true;
 
@@ -70,6 +120,14 @@ namespace JellyfinBench
             {
                 int i = 0;
                 foreach (BuildMode mode in Values.Take(limit)) action(mode, i++);
+            }
+
+            public void SelectMatchingConfigs(string expressions)
+            {
+                string expr = expressions.Replace(',', '|');
+                Regex regex = new Regex(@"(" + expr + @")");
+                List<BuildMode> selected = Values.Where(cfg => regex.IsMatch(cfg.Name)).ToList();
+                Values = selected;
             }
 
             private void AddSeveral(params BuildMode[] additions)
@@ -260,16 +318,44 @@ namespace JellyfinBench
 
         static int Main(string[] args)
         {
-            if (args.Length < 2)
+            if (args.Length > 0)
             {
-                Console.WriteLine("Make sure to pass the number of warmup iterations"
-                                  + " and actual iterations you wish to run :)");
-                return -1;
+                SimpleCommandLineParser parser = new SimpleCommandLineParser();
+                Dictionary<string, string> flags = parser.ParseOptions(args);
+
+                foreach (var kvp in flags)
+                {
+                    switch (kvp.Key)
+                    {
+                        case "warmups":
+                            WarmupIterations = Int32.Parse(kvp.Value);
+                            break;
+
+                        case "iterations":
+                            Iterations = Int32.Parse(kvp.Value);
+                            break;
+
+                        case "first-n-configs":
+                            Configs = Int32.Parse(kvp.Value);
+                            break;
+
+                        case "configs":
+                            s_buildModes.SelectMatchingConfigs(kvp.Value);
+                            break;
+
+                        default:
+                            Console.WriteLine("The flag '{0}' is invalid.", kvp.Key);
+                            break;
+                    }
+                }
+
+                if (s_buildModes.Count() < Configs)
+                    Configs = s_buildModes.Count();
             }
 
-            WarmupIterations = Int32.Parse(args[0]);
-            Iterations = Int32.Parse(args[1]);
-            Configs = (args.Length > 2) ? Int32.Parse(args[2]) : 0;
+            // Console.WriteLine("The regex matched {0} configurations.", s_buildModes.Count());
+            // s_buildModes.EachWithIndex((mode, index) => { Console.WriteLine(mode.Name); }); 
+            // return 0;
 
             s_timestamp = DateTime.Now.ToString("MMdd-HHmm");
             s_folderName = Directory.GetCurrentDirectory();
@@ -782,4 +868,22 @@ namespace JellyfinBench
         //        UseTieredCompilation = false,
         //    },
         //};
+
+            // SimpleCommandLineParser parser = new SimpleCommandLineParser();
+            // Dictionary<string, string> result = parser.ParseOptions(args);
+
+            // foreach (var kvp in result)
+            //     Console.WriteLine("{0}, {1}", kvp.Key, kvp.Value);
+            // return 0;
+
+            // if (args.Length < 2)
+            // {
+            //     Console.WriteLine("Make sure to pass the number of warmup iterations"
+            //                       + " and actual iterations you wish to run :)");
+            //     return -1;
+            // }
+
+            // WarmupIterations = Int32.Parse(args[0]);
+            // Iterations = Int32.Parse(args[1]);
+            // Configs = (args.Length > 2) ? Int32.Parse(args[2]) : 0;
 
