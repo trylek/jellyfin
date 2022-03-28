@@ -1,4 +1,4 @@
-ARG DOTNET_VERSION=7.0
+ARG DOTNET_VERSION=6.0
 
 FROM node:lts-alpine as web-builder
 ARG JELLYFIN_WEB_VERSION=master

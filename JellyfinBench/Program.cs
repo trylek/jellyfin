@@ -130,6 +130,12 @@ namespace JellyfinBench
                 Values = selected;
             }
 
+            public BuildMode GetSpecificConfig(string cfgNameExpr)
+            {
+                Regex regex = new Regex(@"" + cfgNameExpr);
+                return Values.First(cfg => regex.IsMatch(cfg.Name));
+            }
+
             private void AddSeveral(params BuildMode[] additions)
             {
                 foreach (BuildMode addition in additions) Values.Add(addition);
@@ -303,17 +309,41 @@ namespace JellyfinBench
         static TextWriter? s_buildLogFile;
         static TextWriter? s_execLogFile;
 
-        static int TestMain(string[] args)
-        {
-            BuildModeList lst = new BuildModeList();
-            Console.WriteLine("\nNumber of Modes: {0}", lst.Count());
+        // static int TestMain(string[] args)
+        // {
+        //     BuildModeList lst = new BuildModeList();
+        //     Console.WriteLine("\nNumber of Modes: {0}", lst.Count());
 
-            lst.EachWithIndex((mode, index) =>
-            {
-                Console.WriteLine("\nBuild Mode {0}:\n", index+1);
-                mode.PrintProperties();
-            });
-            return 0;
+        //     lst.EachWithIndex((mode, index) =>
+        //     {
+        //         Console.WriteLine("\nBuild Mode {0}:\n", index+1);
+        //         mode.PrintProperties();
+        //     });
+        //     return 0;
+        // }
+
+        static Tuple<string, string> GetConfigBuildAndRunCommand(BuildMode config)
+        {
+            string imageName = "testcontainer";
+            StringBuilder buildCmd = new StringBuilder();
+            StringBuilder runCmd = new StringBuilder();
+
+            buildCmd.AppendFormat("docker build {0}", Directory.GetCurrentDirectory());
+            buildCmd.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}", config.NetCoreComposite);
+            buildCmd.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}", config.NetCoreIncludeAspNet);
+            buildCmd.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}", config.AspNetComposite);
+            buildCmd.AppendFormat(" --build-arg APP_R2R={0}", config.AppR2R);
+            buildCmd.AppendFormat(" --build-arg APP_COMPOSITE={0}", config.AppComposite);
+            buildCmd.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}", config.OneBigComposite);
+            buildCmd.AppendFormat(" --build-arg APP_AVX2={0}", config.AppAVX2);
+            buildCmd.AppendFormat(" -t {0}", imageName);
+
+            runCmd.Append("docker run");
+            runCmd.AppendFormat(" --env COMPlus_ReadyToRun={0}", config.UseReadyToRun ? "1" : "0");
+            runCmd.AppendFormat(" --env COMPlus_TieredCompilation={0}", config.UseTieredCompilation ? "1" : "0");
+            runCmd.AppendFormat(" -it {0}", imageName);
+
+            return new Tuple<string, string>(buildCmd.ToString(), runCmd.ToString());
         }
 
         static int Main(string[] args)
@@ -342,6 +372,14 @@ namespace JellyfinBench
                         case "configs":
                             s_buildModes.SelectMatchingConfigs(kvp.Value);
                             break;
+
+                        case "command-only":
+                            BuildMode config = s_buildModes.GetSpecificConfig(kvp.Value);
+                            Tuple<string, string> cmds = GetConfigBuildAndRunCommand(config);
+                            Console.Write("Configuration Selected:\n{0}\n", config.Name);
+                            Console.Write("\nDocker Build Command:\n{0}\n", cmds.Item1);
+                            Console.Write("\nDocker Run Command:\n{0}\n", cmds.Item2);
+                            return 0;
 
                         default:
                             Console.WriteLine("The flag '{0}' is invalid.", kvp.Key);
