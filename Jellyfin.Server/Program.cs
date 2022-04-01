@@ -269,7 +269,7 @@ namespace Jellyfin.Server
             }
         }
 
-        private static void DisplayProcessDuration(string phase)
+        private static void RetrieveAndDisplayForLinux(string phase)
         {
             int pid = Process.GetCurrentProcess().Id;
             CultureInfo culture = new CultureInfo("en-US");
@@ -293,6 +293,32 @@ namespace Jellyfin.Server
             Console.WriteLine("   <SystemTimeMsec>{0}</SystemTimeMsec>", cstime_msecs);
             Console.WriteLine("</Timing>");
             Console.WriteLine("LMXLMXLMX");
+        }
+
+        private static void RetrieveAndDisplayForWindows(string phase)
+        {
+            Process proc = Process.GetCurrentProcess();
+            double totalMsecs = proc.TotalProcessorTime.TotalMilliseconds;
+            double userMsecs = proc.UserProcessorTime.TotalMilliseconds;
+            double systemMsecs = proc.PrivilegedProcessorTime.TotalMilliseconds;
+
+            Console.Write("\n");
+            Console.WriteLine("XMLXMLXML");
+            Console.WriteLine("<Timing Phase=\"{0}\">", phase);
+            Console.WriteLine("   <TotalTimeMsec>{0}</TotalTimeMsec>", totalMsecs);
+            Console.WriteLine("   <UserTimeMsec>{0}</UserTimeMsec>", userMsecs);
+            Console.WriteLine("   <SystemTimeMsec>{0}</SystemTimeMsec>", systemMsecs);
+            Console.WriteLine("</Timing>");
+            Console.WriteLine("LMXLMXLMX");
+        }
+
+        private static void DisplayProcessDuration(string phase)
+        {
+            if (OperatingSystem.IsLinux())
+                RetrieveAndDisplayForLinux(phase);
+
+            if (OperatingSystem.IsWindows())
+                RetrieveAndDisplayForWindows(phase);
         }
 
         /// <summary>
