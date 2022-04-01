@@ -61,7 +61,7 @@ RUN apt-get update \
  && chmod 777 /cache /config /media \
  && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen
 
-# ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=0
 ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
@@ -69,10 +69,29 @@ ENV LANGUAGE en_US:en
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} as builder
 WORKDIR /repo
 COPY . .
+COPY crossgen2 /root/crossgen2
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 # because of changes in docker and systemd we need to not build in parallel at the moment
 # see https://success.docker.com/article/how-to-reserve-resource-temporarily-unavailable-errors-due-to-tasksmax-setting
-RUN dotnet publish Jellyfin.Server --disable-parallel --configuration Release --output="/jellyfin" --self-contained --runtime linux-x64 "-p:DebugSymbols=false;DebugType=none"
+# RUN dotnet publish Jellyfin.Server --disable-parallel --configuration Release --output="/jellyfin" --self-contained --runtime linux-x64 "-p:DebugSymbols=false;DebugType=none"
+
+ARG APP_R2R=false
+ARG APP_COMPOSITE=false
+ARG APP_AVX2=false
+ARG NETCORE_COMPOSITE=false
+ARG NETCORE_INCLUDE_ASPNET=false
+ARG ASPNET_COMPOSITE=false
+ARG ONE_BIG_COMPOSITE=false
+
+ENV APP_R2R_VALUE=$APP_R2R
+ENV APP_COMPOSITE_VALUE=$APP_COMPOSITE
+ENV APP_AVX2_VALUE=$APP_AVX2
+ENV NETCORE_COMPOSITE_VALUE=$NETCORE_COMPOSITE
+ENV NETCORE_INCLUDE_ASPNET_VALUE=$NETCORE_INCLUDE_ASPNET
+ENV ASPNET_COMPOSITE_VALUE=$ASPNET_COMPOSITE
+ENV ONE_BIG_COMPOSITE_VALUE=$ONE_BIG_COMPOSITE
+
+RUN ./PublishJellyfinServer.sh
 
 FROM app
 
@@ -81,12 +100,21 @@ ENV HEALTHCHECK_URL=http://localhost:8096/health
 COPY --from=builder /jellyfin /jellyfin
 COPY --from=web-builder /dist /jellyfin/jellyfin-web
 
+RUN apt-get update -y \
+ && apt-get install -y wget \
+ && cd / \
+ && mkdir dotnet7p \
+ && cd dotnet7p \
+ && wget https://aka.ms/dotnet/7.0.1xx/daily/dotnet-sdk-linux-x64.tar.gz \
+ && tar -xf dotnet-sdk-linux-x64.tar.gz \
+ && cd ..
+
 EXPOSE 8096
-VOLUME /cache /config
-ENTRYPOINT ["./jellyfin/jellyfin", \
+VOLUME /cache /config /media
+ENTRYPOINT ["./dotnet7p/dotnet", "/jellyfin/jellyfin.dll", \
     "--datadir", "/config", \
     "--cachedir", "/cache", \
     "--ffmpeg", "/usr/lib/jellyfin-ffmpeg/ffmpeg"]
 
-HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=3 \
-     CMD curl -Lk "${HEALTHCHECK_URL}" || exit 1
+# HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=3 \
+#      CMD curl -Lk "${HEALTHCHECK_URL}" || exit 1
