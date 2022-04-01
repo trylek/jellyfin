@@ -99,6 +99,10 @@ build/
 *.opensdf
 *.ipch
 
+# Jellyfin Bench Materials and Results
+results*
+crossgen2*
+
 # Visual C++ cache files
 ipch/
 *.aps
