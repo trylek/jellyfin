@@ -25,6 +25,19 @@ $ffmpegLibPath   = ""
 
 function Clean-Repo()
 {
+  # $backupFolder = "$BasePath\..\PrimeMaterialBackup"
+  # if (Test-Path -Path $backupFolder)
+  # {
+  #   cd $backupFolder
+  #   Get-ChildItem * -Recurse | Remove-Item
+  #   cd $BasePath
+  # }
+  # else
+  # {
+  #   New-Item -Path "$BasePath\..\PrimeMaterialBackup" -ItemType Directory
+  # }
+
+  # Assume all dependencies are present for now.
 }
 
 # Function to ensure Crossgen2, Jellyfin-Web, and FFMPEG are present.
