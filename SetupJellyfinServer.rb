@@ -77,7 +77,7 @@ def build_server
   sleep(2) if $options[:stepped]
 
   Dir.chdir('Jellyfin.Server') do
-    system("cmd /k \"#{publish_cmd} & exit\"")
+    system("cmd.exe /k \"#{publish_cmd} & exit\"")
   end
 
   do_crossgen2() unless $options[:onebigcomposite]
@@ -180,19 +180,19 @@ end
 # Download the latest nightly build of the runtime.
 
 def fetch_and_prepare_daily_runtime(version)
-  FileUtils.remove_dir(NIGHTLY_PATH) if Dir.exist?(dotnet_dlpath)
+  return if Dir.exist?(NIGHTLY_PATH)
   FileUtils.mkdir_p(NIGHTLY_PATH)
 
   url = "https://aka.ms/dotnet/#{version}/daily/dotnet-sdk-win-x64.zip"
   dl_name = ""
-  puts "\nDownloading the nightly runtime build to #{NIGHTLY_PATH}..."
+  # puts "\nDownloading the nightly runtime build to #{NIGHTLY_PATH}..."
 
   URI.open(url) do |download|
     dl_name = download.base_uri.to_s.split('/')[-1]
     IO.copy_stream(download, "#{NIGHTLY_PATH}/#{dl_name}")
   end
 
-  puts "Extracting #{dl_name} now..."
+  # puts "Extracting #{dl_name} now..."
   Dir.chdir(NIGHTLY_PATH) do
     system("cmd.exe /k \"tar -xf #{dl_name} & exit\"")
   end
@@ -203,6 +203,17 @@ end
 
 def run_server()
   runcmd = ""
+  ready_to_run = $options[:readytorun] ? '1' : '0'
+  tiered_compilation = $options[:tieredcompilation] ? '1' : '0'
+
+  runcmd << "set COMPlus_ReadyToRun=#{ready_to_run}"
+  runcmd << " && set COMPlus_TieredCompilation=#{tiered_compilation}"
+  runcmd << " && #{NIGHTLY_PATH}/dotnet.exe"
+  runcmd << " #{OUTPUT_PATH}/jellyfin.dll"
+
+  Dir.chdir(OUTPUT_PATH) do
+    system("cmd.exe /k \"#{runcmd} & exit\"")
+  end
 end
 
 
@@ -272,7 +283,7 @@ end
 opts_parser.parse!
 
 # puts $options
-# exit
+# exit(0)
 
 # Assert only building or running is set at once.
 if ($options[:build] and $options[:run]) then
@@ -289,6 +300,7 @@ if ($options[:build]) then
     exit(-1)
   end
   build_server()
+  exit(0)
 end
 
 # Running the server was requested.
@@ -296,5 +308,6 @@ if ($options[:run]) then
   dotnet_version = '7.0.1xx'
   fetch_and_prepare_daily_runtime(dotnet_version)
   run_server()
+  exit(143)
 end
 

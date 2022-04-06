@@ -566,8 +566,8 @@ namespace JellyfinBench
             string result = "";
             int exitCode = RunProcess(psi, s_buildLogFile!, out List<string> stdout);
 
-            if (exitCode == 0) result = "Finished!"
-            else result = "Failed!"
+            if (exitCode == 0) result = "Finished!";
+            else result = "Failed!";
 
             Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index, total, sw.ElapsedMilliseconds);
             return result;
@@ -622,6 +622,7 @@ namespace JellyfinBench
             };
 
             int exitCode = RunProcess(psi, s_execLogFile!, out List<string> stdout);
+            Console.WriteLine("EXITCODEEXITCODEEXITCODE: {0}", exitCode);
             if (exitCode != 143)
             {
                 return false;
@@ -808,10 +809,15 @@ namespace JellyfinBench
 
                 foreach (XmlNode result in buildAndRun!["Results"]!.ChildNodes!)
                 {
+                    // Console.WriteLine("\nPHASE: {0}", result!.Attributes!["Phase"]!.InnerText!);
+                    // Console.WriteLine("TOTAL_MSECS: {0}", result!["TotalTimeMsec"]!.InnerText!);
+                    // Console.WriteLine("USER_MSECS: {0}", result!["UserTimeMsec"]!.InnerText!);
+                    // Console.WriteLine("SYSTEM_TIME_MSEC: {0}", result!["SystemTimeMsec"]!.InnerText!);
+
                     string phase = result!.Attributes!["Phase"]!.InnerText!;
-                    int totalMsecs = int.Parse(result!["TotalTimeMsec"]!.InnerText!);
-                    int userMsecs = int.Parse(result!["UserTimeMsec"]!.InnerText!);
-                    int systemMsecs = int.Parse(result!["SystemTimeMsec"]!.InnerText!);
+                    int totalMsecs = Convert.ToInt32(double.Parse(result!["TotalTimeMsec"]!.InnerText!));
+                    int userMsecs = Convert.ToInt32(double.Parse(result!["UserTimeMsec"]!.InnerText!));
+                    int systemMsecs = Convert.ToInt32(double.Parse(result!["SystemTimeMsec"]!.InnerText!));
 
                     switch (phase)
                     {
