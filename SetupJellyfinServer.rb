@@ -5,10 +5,12 @@ require 'optparse'
 require 'fileutils'
 require 'find'
 require 'pathname'
+require 'open-uri'
 
 BASE_PATH = Dir.pwd
 OUTPUT_PATH = "#{BASE_PATH}/Jellyfin.Server/bin/Release/net6.0/win-x64"
 WINDOTNET_SHARED_PATH = 'C:/Program Files (x86)/dotnet/shared'
+NIGHTLY_PATH = "#{BASE_PATH}/DotnetNightly"
 
 $options = {}
 $crossgen2_path = ""
@@ -93,43 +95,44 @@ end
 def do_crossgen2
   netcore_path = find_newest_dotnetdll_basepath('System.Private.CoreLib.dll')
   aspnet_path = find_newest_dotnetdll_basepath('Microsoft.AspNetCore.dll')
-  dotnet_resources_path = "#{BASE_PATH}/../MiscellaneousTools/PrimeMaterial/DotnetResources"
+  # dotnet_resources_path = "#{BASE_PATH}/../MiscellaneousTools/PrimeMaterial/DotnetResources"
 
   puts "\nInstalled .NET Core Path: #{netcore_path}"
   puts "Installed ASP.NET Core Path: #{aspnet_path}\n"
 
-  unless Dir.exist?(dotnet_resources_path) then
-    FileUtils.mkdir_p(dotnet_resources_path)
-  end
-  # puts Dir.exist?(dotnet_resources_path)
+  # FileUtils.cp_r(netcore_path, dotnet_resources_path)
+  # FileUtils.mv("#{dotnet_resources_path}/6.0.3",
+  #              "#{dotnet_resources_path}/NetCoreShared",
+  #               force: true)
 
-  FileUtils.cp_r(netcore_path, dotnet_resources_path)
-  FileUtils.mv("#{dotnet_resources_path}/6.0.3",
-               "#{dotnet_resources_path}/NetCoreShared")
+  # FileUtils.cp_r(aspnet_path, dotnet_resources_path)
+  # FileUtils.mv("#{dotnet_resources_path}/6.0.3",
+  #              "#{dotnet_resources_path}/AspNetCoreShared",
+  #               force: true)
 
-  FileUtils.cp_r(aspnet_path, dotnet_resources_path)
-  FileUtils.mv("#{dotnet_resources_path}/6.0.3",
-               "#{dotnet_resources_path}/AspNetCoreShared")
-
-  puts 'Going to now apply the provided custom Crossgen2 to build the composite images...'
-  print "\n"
   sleep(2) if $options[:stepped]
 
   if ($options[:netcorecomposite]) then
+    puts 'Going to now apply the provided custom Crossgen2 to build the composite images...'
+    print "\n"
+
     netcore_cmd = "dotnet #{$crossgen2_path} --composite"
-    netcore_cmd << ' --targetos:Windows'
-    netcore_cmd << ' --targetarch:x64'
+    netcore_cmd << ' --targetos Windows'
+    netcore_cmd << ' --targetarch x64'
 
-    netcore_cmd << ' --instruction-set:avx2 --inputbubble' if $options[:appavx2]
+    netcore_cmd << ' --instruction-set avx2 --inputbubble' if $options[:appavx2]
 
-    netcore_cmd << " #{dotnet_resources_path}/NetCoreShared/*.dll"
+    # netcore_cmd << " #{dotnet_resources_path}/NetCoreShared/*.dll"
+    netcore_cmd << " \"#{netcore_path}/*.dll\""
     composite_file = 'framework'
 
     if ($options[:includeaspnet]) then
-      netcore_cmd << " #{dotnet_resources_path}/AspNetCoreShared/*.dll"
+      puts 'Also going to compile ASP.NET...'
+      # netcore_cmd << " #{dotnet_resources_path}/AspNetCoreShared/*.dll"
+      netcore_cmd << " \"#{aspnet_path}/*.dll\""
       composite_file = 'framework-aspnet'
     end
-    netcore_cmd << " -o:#{OUTPUT_PATH}/#{composite_file}.r2r.dll"
+    netcore_cmd << " --out #{OUTPUT_PATH}/#{composite_file}.r2r.dll"
 
     puts "\nBuilding .NET Core Composite Images with the following command:\n"
     puts "#{netcore_cmd}\n"
@@ -143,22 +146,23 @@ def do_crossgen2
     FileUtils.cp_r("#{netcore_path}/.", OUTPUT_PATH, remove_destination: true)
   end
 
-  # if ($options[:aspnetcomposite] and (not $options[:includeaspnet]))
-  #   aspnet_cmd = "dotnet #{$crossgen2_path} -o:#{OUTPUT_PATH}/aspnetcore.r2r.dll"
-  #   aspnet_cmd << ' --composite'
-  #   aspnet_cmd << ' --targetos:Windows'
-  #   aspnet_cmd << ' --targetarch:x64'
+  if ($options[:aspnetcomposite] and (not $options[:includeaspnet]))
+    puts "Going to compile ASP.NET...\n"
+    aspnet_cmd = "dotnet #{$crossgen2_path} --out #{OUTPUT_PATH}/aspnetcore.r2r.dll"
+    aspnet_cmd << ' --composite'
+    aspnet_cmd << ' --targetos Windows'
+    aspnet_cmd << ' --targetarch x64'
 
-  #   aspnet_cmd << ' --instruction-set:avx2 --inputbubble' if $options[:appavx2]
+    aspnet_cmd << ' --instruction-set avx2 --inputbubble' if $options[:appavx2]
 
-  #   aspnet_cmd << " #{dotnet_resources_path}/AspNetCoreShared/*.dll"
-  #   aspnet_cmd << " -r:#{dotnet_resources_path}/NetCoreShared/*.dll"
+    aspnet_cmd << " #{aspnet_path}/*.dll"
+    aspnet_cmd << " --reference #{netcore_path}/*.dll"
 
-  #   puts "\nBuilding ASP.NET Composite Images with the following command:\n"
-  #   puts "#{aspnet_cmd}\n"
-  #   sleep(2) if $options[:stepped]
-  #   system("cmd.exe /k \"#{aspnet_cmd} & exit\"")
-  # end
+    puts "\nBuilding ASP.NET Composite Images with the following command:\n"
+    puts "#{aspnet_cmd}\n"
+    sleep(2) if $options[:stepped]
+    system("cmd.exe /k \"#{aspnet_cmd} & exit\"")
+  end
 end
 
 
@@ -173,12 +177,51 @@ def find_newest_dotnetdll_basepath(dllname)
 end
 
 
+# Download the latest nightly build of the runtime.
+
+def fetch_and_prepare_daily_runtime(version)
+  FileUtils.remove_dir(NIGHTLY_PATH) if Dir.exist?(dotnet_dlpath)
+  FileUtils.mkdir_p(NIGHTLY_PATH)
+
+  url = "https://aka.ms/dotnet/#{version}/daily/dotnet-sdk-win-x64.zip"
+  dl_name = ""
+  puts "\nDownloading the nightly runtime build to #{NIGHTLY_PATH}..."
+
+  URI.open(url) do |download|
+    dl_name = download.base_uri.to_s.split('/')[-1]
+    IO.copy_stream(download, "#{NIGHTLY_PATH}/#{dl_name}")
+  end
+
+  puts "Extracting #{dl_name} now..."
+  Dir.chdir(NIGHTLY_PATH) do
+    system("cmd.exe /k \"tar -xf #{dl_name} & exit\"")
+  end
+end
+
+
+# Run the Jellyfin Server!
+
+def run_server()
+  runcmd = ""
+end
+
+
 # Script
 
 opts_parser = OptionParser.new do |opts|
   $options[:stepped] = false
   opts.on('--stepped', 'Wait 2 seconds before executing next command.') do |v|
     $options[:stepped] = true
+  end
+
+  $options[:build] = false
+  opts.on('--build', 'Build the Jellyfin Server and required composites.') do |v|
+    $options[:build] = true
+  end
+
+  $options[:run] = false
+  opts.on('--run', 'Run the previously built Jellyfin Server.') do |v|
+    $options[:run] = true
   end
 
   $options[:appr2r] = false
@@ -215,15 +258,43 @@ opts_parser = OptionParser.new do |opts|
   opts.on('--onebigcomposite', 'ONE_BIG_COMPOSITE flag help goes here.') do
     $options[:onebigcomposite] = true
   end
+
+  $options[:readytorun] = false
+  opts.on('--readytorun', 'Sets COMPlus_ReadyToRun env variable.') do
+    $options[:readytorun] = true
+  end
+
+  $options[:tieredcompilation] = false
+  opts.on('--tieredcompilation', 'Sets COMPlus_TieredCompilation env variable.') do
+    $options[:tieredcompilation] = true
+  end
 end
 opts_parser.parse!
 
-ready = check_and_set_dependecies()
-if (ready == -1) then
-  puts "\nExiting...\n"
-  exit(-1)
+# puts $options
+# exit
+
+# Assert only building or running is set at once.
+if ($options[:build] and $options[:run]) then
+  puts "You cannot build and run at the same time. It has to be done by steps :)"
+  exit(-2)
 end
 
-build_server()
-# do_crossgen2()
+# Building the server was requested.
+if ($options[:build]) then
+  ready = check_and_set_dependecies()
+
+  if (ready == -1) then
+    puts "\nExiting...\n"
+    exit(-1)
+  end
+  build_server()
+end
+
+# Running the server was requested.
+if ($options[:run]) then
+  dotnet_version = '7.0.1xx'
+  fetch_and_prepare_daily_runtime(dotnet_version)
+  run_server()
+end
 

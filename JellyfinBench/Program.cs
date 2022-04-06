@@ -451,10 +451,12 @@ namespace JellyfinBench
         private static void BuildAndRun(in BuildMode buildMode, StringBuilder xml, int index, int count)
         {
             string image = Build(buildMode, index, count);
-            if (image == null)
+            #pragma warning disable CA1307
+            if (image == null || image.Contains("Failed"))
             {
                 return;
             }
+            #pragma warning restore CA1307
 
             xml.AppendFormat("<BuildAndRun Name=\"{0}\">\n", buildMode.Name);
             xml.AppendFormat("<NetCoreComposite>{0}</NetCoreComposite>\n", buildMode.NetCoreComposite);
@@ -471,12 +473,14 @@ namespace JellyfinBench
             // StringBuilder warmupBuilder = new StringBuilder();
             for (int warmupI = 0; warmupI < WarmupIterations; warmupI++)
             {
-                Run(buildMode, image, xml);
+                if (OperatingSystem.IsLinux()) RunOnLinux(buildMode, image, xml);
+                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml);
             }
 
             for (int iteration = 0; iteration < Iterations; iteration++)
             {
-                Run(buildMode, image, xml);
+                if (OperatingSystem.IsLinux()) RunOnLinux(buildMode, image, xml);
+                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml);
             }
 
             xml.AppendLine("</Results>");
@@ -484,6 +488,17 @@ namespace JellyfinBench
         }
 
         private static string Build(in BuildMode buildMode, int index, int total)
+        {
+            if (OperatingSystem.IsLinux())
+                return BuildForLinux(buildMode, index, total);
+
+            if (OperatingSystem.IsWindows())
+                return BuildForWindows(buildMode, index, total);
+
+            return "Finished";
+        }
+
+        private static string BuildForLinux(in BuildMode buildMode, int index, int total)
         {
             Stopwatch sw = Stopwatch.StartNew();
             StringBuilder commandLine = new StringBuilder();
@@ -527,7 +542,38 @@ namespace JellyfinBench
             return imageId!;
         }
 
-        private static bool Run(BuildMode buildMode, string dockerImageId, StringBuilder xml)
+        private static string BuildForWindows(in BuildMode buildMode, int index, int total)
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --build");
+            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})", buildMode.Name, index, total);
+
+            if (buildMode.AppR2R)               commandLine.Append(" --appr2r");
+            if (buildMode.AppComposite)         commandLine.Append(" --appcomposite");
+            if (buildMode.AppAVX2)              commandLine.Append(" --appavx2");
+            if (buildMode.NetCoreComposite)     commandLine.Append(" --netcorecomposite");
+            if (buildMode.NetCoreIncludeAspNet) commandLine.Append(" --includeaspnet");
+            if (buildMode.AspNetComposite)      commandLine.Append(" --aspnetcomposite");
+            if (buildMode.OneBigComposite)      commandLine.Append(" --onebigcomposite");
+
+            ProcessStartInfo psi = new ProcessStartInfo()
+            {
+                FileName = "ruby",
+                Arguments = commandLine.ToString(),
+                UseShellExecute = false,
+            };
+
+            string result = "";
+            int exitCode = RunProcess(psi, s_buildLogFile!, out List<string> stdout);
+
+            if (exitCode == 0) result = "Finished!"
+            else result = "Failed!"
+
+            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index, total, sw.ElapsedMilliseconds);
+            return result;
+        }
+
+        private static bool RunOnLinux(BuildMode buildMode, string dockerImageId, StringBuilder xml)
         {
             StringBuilder commandLine = new StringBuilder();
             commandLine.Append("run");
@@ -538,6 +584,39 @@ namespace JellyfinBench
             ProcessStartInfo psi = new ProcessStartInfo()
             {
                 FileName = "docker",
+                Arguments = commandLine.ToString(),
+                UseShellExecute = false,
+            };
+
+            int exitCode = RunProcess(psi, s_execLogFile!, out List<string> stdout);
+            if (exitCode != 143)
+            {
+                return false;
+            }
+
+            for (int line = 0; line < stdout.Count; line++)
+            {
+                if (stdout[line] == "XMLXMLXML")
+                {
+                    int startLine = ++line;
+                    while (line < stdout.Count && stdout[line] != "LMXLMXLMX")
+                    {
+                        xml.AppendLine(stdout[line++]);
+                    }
+                }
+            }
+            return true;
+        }
+
+        private static bool RunOnWindows(BuildMode buildMode, StringBuilder xml)
+        {
+            StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --run");
+            if (buildMode.UseReadyToRun)        commandLine.Append(" --readytorun");
+            if (buildMode.UseTieredCompilation) commandLine.Append(" --tieredcompilation");
+
+            ProcessStartInfo psi = new ProcessStartInfo()
+            {
+                FileName = "ruby",
                 Arguments = commandLine.ToString(),
                 UseShellExecute = false,
             };
