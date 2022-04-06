@@ -28,7 +28,7 @@ def check_and_set_dependecies
   end
 
   $crossgen2_path = "#{dirs_existing[0]}/crossgen2.dll"
-  puts "Found crossgen2 in #{$crossgen2_path}"
+  puts "\nFound crossgen2 in #{$crossgen2_path}"
 
   dirs_existing = Dir.glob("jellyfin-web")
   if (dirs_existing.empty?) then
@@ -71,14 +71,14 @@ def build_server
   end
 
   puts "\nGoing to build and publish the Jellyfin Web Server with the following command:"
-  puts "#{publish_cmd}\n\n"
+  puts "\n#{publish_cmd}\n\n"
   sleep(2) if $options[:stepped]
 
   Dir.chdir('Jellyfin.Server') do
     system("cmd /k \"#{publish_cmd} & exit\"")
   end
 
-  # do_crossgen2() unless $options[:onebigcomposite]
+  do_crossgen2() unless $options[:onebigcomposite]
 
   puts "\nCopying jellyfin-web and FFMPEG to the server's path..."
   sleep(2) if $options[:stepped]
@@ -93,8 +93,76 @@ end
 def do_crossgen2
   netcore_path = find_newest_dotnetdll_basepath('System.Private.CoreLib.dll')
   aspnet_path = find_newest_dotnetdll_basepath('Microsoft.AspNetCore.dll')
+  dotnet_resources_path = "#{BASE_PATH}/../MiscellaneousTools/PrimeMaterial/DotnetResources"
+
+  puts "\nInstalled .NET Core Path: #{netcore_path}"
+  puts "Installed ASP.NET Core Path: #{aspnet_path}\n"
+
+  unless Dir.exist?(dotnet_resources_path) then
+    FileUtils.mkdir_p(dotnet_resources_path)
+  end
+  # puts Dir.exist?(dotnet_resources_path)
+
+  FileUtils.cp_r(netcore_path, dotnet_resources_path)
+  FileUtils.mv("#{dotnet_resources_path}/6.0.3",
+               "#{dotnet_resources_path}/NetCoreShared")
+
+  FileUtils.cp_r(aspnet_path, dotnet_resources_path)
+  FileUtils.mv("#{dotnet_resources_path}/6.0.3",
+               "#{dotnet_resources_path}/AspNetCoreShared")
+
+  puts 'Going to now apply the provided custom Crossgen2 to build the composite images...'
+  print "\n"
+  sleep(2) if $options[:stepped]
+
+  if ($options[:netcorecomposite]) then
+    netcore_cmd = "dotnet #{$crossgen2_path} --composite"
+    netcore_cmd << ' --targetos:Windows'
+    netcore_cmd << ' --targetarch:x64'
+
+    netcore_cmd << ' --instruction-set:avx2 --inputbubble' if $options[:appavx2]
+
+    netcore_cmd << " #{dotnet_resources_path}/NetCoreShared/*.dll"
+    composite_file = 'framework'
+
+    if ($options[:includeaspnet]) then
+      netcore_cmd << " #{dotnet_resources_path}/AspNetCoreShared/*.dll"
+      composite_file = 'framework-aspnet'
+    end
+    netcore_cmd << " -o:#{OUTPUT_PATH}/#{composite_file}.r2r.dll"
+
+    puts "\nBuilding .NET Core Composite Images with the following command:\n"
+    puts "#{netcore_cmd}\n"
+    sleep(2) if $options[:stepped]
+    system("cmd.exe /k \"#{netcore_cmd} & exit\"")
+
+  else
+    puts "\nNo .NET Core Composites requested..."
+    puts "Copying the DLL's from #{netcore_path}..."
+    sleep(2) if $options[:stepped]
+    FileUtils.cp_r("#{netcore_path}/.", OUTPUT_PATH, remove_destination: true)
+  end
+
+  # if ($options[:aspnetcomposite] and (not $options[:includeaspnet]))
+  #   aspnet_cmd = "dotnet #{$crossgen2_path} -o:#{OUTPUT_PATH}/aspnetcore.r2r.dll"
+  #   aspnet_cmd << ' --composite'
+  #   aspnet_cmd << ' --targetos:Windows'
+  #   aspnet_cmd << ' --targetarch:x64'
+
+  #   aspnet_cmd << ' --instruction-set:avx2 --inputbubble' if $options[:appavx2]
+
+  #   aspnet_cmd << " #{dotnet_resources_path}/AspNetCoreShared/*.dll"
+  #   aspnet_cmd << " -r:#{dotnet_resources_path}/NetCoreShared/*.dll"
+
+  #   puts "\nBuilding ASP.NET Composite Images with the following command:\n"
+  #   puts "#{aspnet_cmd}\n"
+  #   sleep(2) if $options[:stepped]
+  #   system("cmd.exe /k \"#{aspnet_cmd} & exit\"")
+  # end
 end
 
+
+# Search for the shared dotnet directories where the given dll is.
 
 def find_newest_dotnetdll_basepath(dllname)
   paths = []
@@ -150,12 +218,12 @@ opts_parser = OptionParser.new do |opts|
 end
 opts_parser.parse!
 
-# ready = check_and_set_dependecies()
-# if (ready == -1) then
-#   puts "\nExiting...\n"
-#   exit(-1)
-# end
-# 
-# build_server()
-do_crossgen2()
+ready = check_and_set_dependecies()
+if (ready == -1) then
+  puts "\nExiting...\n"
+  exit(-1)
+end
+
+build_server()
+# do_crossgen2()
 
