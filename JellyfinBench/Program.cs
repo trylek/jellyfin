@@ -610,7 +610,7 @@ namespace JellyfinBench
 
         private static bool RunOnWindows(BuildMode buildMode, StringBuilder xml)
         {
-            StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --run");
+            StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --run RESOLUTION");
             if (buildMode.UseReadyToRun)        commandLine.Append(" --readytorun");
             if (buildMode.UseTieredCompilation) commandLine.Append(" --tieredcompilation");
 
@@ -622,7 +622,7 @@ namespace JellyfinBench
             };
 
             int exitCode = RunProcess(psi, s_execLogFile!, out List<string> stdout);
-            Console.WriteLine("EXITCODEEXITCODEEXITCODE: {0}", exitCode);
+            // Console.WriteLine("EXITCODEEXITCODEEXITCODE: {0}", exitCode);
             if (exitCode != 143)
             {
                 return false;
@@ -630,6 +630,7 @@ namespace JellyfinBench
 
             for (int line = 0; line < stdout.Count; line++)
             {
+                Console.WriteLine("OUTPUT: {0}", stdout[line]);
                 if (stdout[line] == "XMLXMLXML")
                 {
                     int startLine = ++line;

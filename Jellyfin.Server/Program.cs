@@ -648,7 +648,7 @@ namespace Jellyfin.Server
             {
                 inMemoryDefaultConfig[DefaultRedirectKey] = "api-docs/swagger";
             }
-
+#pragma warning disable CS8620
             return config
                 .SetBasePath(appPaths.ConfigurationDirectoryPath)
                 .AddInMemoryCollection(inMemoryDefaultConfig)
@@ -656,6 +656,7 @@ namespace Jellyfin.Server
                 .AddJsonFile(LoggingConfigFileSystem, optional: true, reloadOnChange: true)
                 .AddEnvironmentVariables("JELLYFIN_")
                 .AddInMemoryCollection(commandLineOpts.ConvertToConfig());
+#pragma warning restore CS8620
         }
 
         /// <summary>

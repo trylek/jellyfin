@@ -7,15 +7,52 @@ require 'find'
 require 'pathname'
 require 'open-uri'
 
+DOTNET_TARGET = '7.0'
+
 BASE_PATH = Dir.pwd
-OUTPUT_PATH = "#{BASE_PATH}/Jellyfin.Server/bin/Release/net6.0/win-x64"
+OUTPUT_PATH = "#{BASE_PATH}/Jellyfin.Server/bin/Release/net#{DOTNET_TARGET}/win-x64"
 WINDOTNET_SHARED_PATH = 'C:/Program Files (x86)/dotnet/shared'
 NIGHTLY_PATH = "#{BASE_PATH}/DotnetNightly"
+RUNTIME_ARTIFACTS_PATH = "#{BASE_PATH}/../runtime/artifacts/bin/coreclr/windows.x64.Checked"
 
 $options = {}
 $crossgen2_path = ""
 $jellyfin_web_path = ""
 $ffmpeg_libs_path = ""
+
+
+# Clean the repo while keeping the imported prime material.
+
+def clean
+  backup_place = "#{BASE_PATH}/../Jellyfin-Resources"
+  FileUtils.mkdir_p(backup_place) unless Dir.exist?(backup_place)
+
+  backup_dir("*crossgen2*", backup_place)
+  backup_dir("*jellyfin-web*", backup_place)
+  backup_dir("*ffmpeg*", backup_place)
+  system('git clean -fdx')
+
+  print "\n"
+  Dir.children(backup_place).each do |folder|
+    puts "Restoring #{folder}..."
+    FileUtils.cp_r("#{backup_place}/#{folder}", BASE_PATH)
+  end
+end
+
+
+# Backup a directory if it's present.
+
+def backup_dir(name, backup_path)
+  puts("\nSearching for #{name} folders to back up...")
+  dirs_existing = Dir.glob(name)
+  return if dirs_existing.empty?
+
+  dirs_existing.each do |folder|
+    puts("Backing up #{folder} to #{backup_path}/#{folder}...")
+    FileUtils.cp_r(folder, backup_path, remove_destination: true)
+  end
+end
+
 
 # Ensure Crossgen2, Jellyfin-Web, and FFMPEG are present in the jellyfin folder.
 
@@ -199,9 +236,21 @@ def fetch_and_prepare_daily_runtime(version)
 end
 
 
+# For analyzing the methods where R2R Resolution failed, we require a Checked
+# version of the runtime.
+
+def patch_checked_clr
+  Dir.chdir(RUNTIME_ARTIFACTS_PATH) do
+    FileUtils.cp_r(%w(coreclr.dll System.Private.CoreLib.dll),
+                   "#{NIGHTLY_PATH}/shared/Microsoft.NETCore.App/7.0.0-preview.4.22201.3",
+                    remove_destination: true)
+  end
+end
+
+
 # Run the Jellyfin Server!
 
-def run_server()
+def run_server
   runcmd = ""
   ready_to_run = $options[:readytorun] ? '1' : '0'
   tiered_compilation = $options[:tieredcompilation] ? '1' : '0'
@@ -210,9 +259,14 @@ def run_server()
   runcmd << " && set COMPlus_TieredCompilation=#{tiered_compilation}"
   runcmd << " && #{NIGHTLY_PATH}/dotnet.exe"
   runcmd << " #{OUTPUT_PATH}/jellyfin.dll"
+  # runcmd << "#{NIGHTLY_PATH}/dotnet.exe"
+  # runcmd << " #{OUTPUT_PATH}/jellyfin.dll"
 
+  puts "\nAbout to run: #{runcmd}\n"
+  sleep(2)
   Dir.chdir(OUTPUT_PATH) do
     system("cmd.exe /k \"#{runcmd} & exit\"")
+    # system(runcmd)
   end
 end
 
@@ -220,19 +274,30 @@ end
 # Script
 
 opts_parser = OptionParser.new do |opts|
+  $options[:clean] = false
+  opts.on('--clean', 'Clean the entire repository without losing the prime material.') do
+    $options[:clean] = true
+  end
+
   $options[:stepped] = false
-  opts.on('--stepped', 'Wait 2 seconds before executing next command.') do |v|
+  opts.on('--stepped', 'Wait 2 seconds before executing next command.') do
     $options[:stepped] = true
   end
 
   $options[:build] = false
-  opts.on('--build', 'Build the Jellyfin Server and required composites.') do |v|
+  opts.on('--build', 'Build the Jellyfin Server and required composites.') do
     $options[:build] = true
   end
 
   $options[:run] = false
-  opts.on('--run', 'Run the previously built Jellyfin Server.') do |v|
-    $options[:run] = true
+  opts.on('--run TYPE', 'Run the previously built Jellyfin Server.') do |v|
+    # $options[:run] = true
+    if ['BENCHMARK', 'RESOLUTION'].include?(v.upcase) then
+      $options[:run] = v
+    else
+      puts "\nThe currently supported Run Types are: BENCHMARK, RESOLUTION"
+      exit(-3)
+    end
   end
 
   $options[:appr2r] = false
@@ -279,11 +344,23 @@ opts_parser = OptionParser.new do |opts|
   opts.on('--tieredcompilation', 'Sets COMPlus_TieredCompilation env variable.') do
     $options[:tieredcompilation] = true
   end
+
+  $options[:tieredcompilation] = false
+  opts.on('--tieredcompilation', 'Sets COMPlus_TieredCompilation env variable.') do
+    $options[:tieredcompilation] = true
+  end
+
 end
 opts_parser.parse!
 
 # puts $options
 # exit(0)
+
+# Perform repo cleaning if its flag is passed.
+if ($options[:clean]) then
+  clean()
+  exit(0)
+end
 
 # Assert only building or running is set at once.
 if ($options[:build] and $options[:run]) then
@@ -307,6 +384,7 @@ end
 if ($options[:run]) then
   dotnet_version = '7.0.1xx'
   fetch_and_prepare_daily_runtime(dotnet_version)
+  patch_checked_clr() if $options[:run].match?('RESOLUTION')
   run_server()
   exit(143)
 end
