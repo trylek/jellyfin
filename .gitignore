@@ -102,6 +102,9 @@ build/
 # Jellyfin Bench Materials and Results
 results*
 crossgen2*
+jellyfin-web
+DotnetNightly
+r2rfails*
 
 # Visual C++ cache files
 ipch/

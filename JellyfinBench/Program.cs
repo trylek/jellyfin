@@ -70,9 +70,6 @@ namespace JellyfinBench
         static int Configs = 0;
         static bool ResolutionFailsInstead = false;
 
-        // const bool UseReadyToRun = true;
-        // const bool UseTieredCompilation = true;
-
         struct BuildMode
         {
             public string Name;
@@ -132,7 +129,8 @@ namespace JellyfinBench
             {
                 string expr = expressions.Replace(',', '|');
                 Regex regex = new Regex(@"(" + expr + @")");
-                List<BuildMode> selected = Values.Where(cfg => regex.IsMatch(cfg.Name)).ToList();
+                List<BuildMode> selected = Values.Where(cfg => regex.IsMatch(cfg.Name))
+                                          .ToList();
                 Values = selected;
             }
 
@@ -322,18 +320,27 @@ namespace JellyfinBench
             StringBuilder runCmd = new StringBuilder();
 
             buildCmd.AppendFormat("docker build {0}", Directory.GetCurrentDirectory());
-            buildCmd.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}", config.NetCoreComposite);
-            buildCmd.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}", config.NetCoreIncludeAspNet);
-            buildCmd.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}", config.AspNetComposite);
-            buildCmd.AppendFormat(" --build-arg APP_R2R={0}", config.AppR2R);
-            buildCmd.AppendFormat(" --build-arg APP_COMPOSITE={0}", config.AppComposite);
-            buildCmd.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}", config.OneBigComposite);
-            buildCmd.AppendFormat(" --build-arg APP_AVX2={0}", config.AppAVX2);
+            buildCmd.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}",
+                                  config.NetCoreComposite);
+            buildCmd.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}",
+                                  config.NetCoreIncludeAspNet);
+            buildCmd.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}",
+                                  config.AspNetComposite);
+            buildCmd.AppendFormat(" --build-arg APP_R2R={0}",
+                                  config.AppR2R);
+            buildCmd.AppendFormat(" --build-arg APP_COMPOSITE={0}",
+                                  config.AppComposite);
+            buildCmd.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}",
+                                  config.OneBigComposite);
+            buildCmd.AppendFormat(" --build-arg APP_AVX2={0}",
+                                  config.AppAVX2);
             buildCmd.AppendFormat(" -t {0}", imageName);
 
             runCmd.Append("docker run");
-            runCmd.AppendFormat(" --env COMPlus_ReadyToRun={0}", config.UseReadyToRun ? "1" : "0");
-            runCmd.AppendFormat(" --env COMPlus_TieredCompilation={0}", config.UseTieredCompilation ? "1" : "0");
+            runCmd.AppendFormat(" --env COMPlus_ReadyToRun={0}",
+                                config.UseReadyToRun ? "1" : "0");
+            runCmd.AppendFormat(" --env COMPlus_TieredCompilation={0}",
+                                config.UseTieredCompilation ? "1" : "0");
             runCmd.AppendFormat(" -it {0}", imageName);
 
             return new Tuple<string, string>(buildCmd.ToString(), runCmd.ToString());
@@ -377,7 +384,10 @@ namespace JellyfinBench
                         case "resolution-fails":
                             if (!OperatingSystem.IsWindows())
                             {
-                                Console.WriteLine("The --resolution-fails flag is currently only supported on Windows. Ignoring...");
+                                Console.WriteLine("The --resolution-fails flag is "
+                                                  + "currently only supported on Windows."
+                                                  + " Ignoring...");
+                                break;
                             }
                             ResolutionFailsInstead = true;
                             s_buildModes.SelectMatchingConfigs("usereadytorun");
@@ -403,8 +413,10 @@ namespace JellyfinBench
             StringBuilder? r2rFailsXml = null;
             xml.AppendLine("<Xml>");
 
-            string buildLogFile = Path.Combine(s_folderName, $"jellyfin-build-{s_timestamp}.log");
-            string execLogFile = Path.Combine(s_folderName, $"jellyfin-run-{s_timestamp}.log");
+            string buildLogFile = Path.Combine(s_folderName,
+                                               $"jellyfin-build-{s_timestamp}.log");
+            string execLogFile = Path.Combine(s_folderName,
+                                               $"jellyfin-run-{s_timestamp}.log");
             int totalBuildModes = s_buildModes.Count();
 
             if (ResolutionFailsInstead)
@@ -453,7 +465,11 @@ namespace JellyfinBench
             return 0;
         }
 
-        private static void BuildAndRun(in BuildMode buildMode, StringBuilder xml, StringBuilder r2rFailsXml, int index, int count)
+        private static void BuildAndRun(in BuildMode buildMode,
+                                        StringBuilder xml,
+                                        StringBuilder r2rFailsXml,
+                                        int index,
+                                        int count)
         {
             string image = Build(buildMode, index, count);
             if (image == null || image.Contains("Failed"))
@@ -462,23 +478,31 @@ namespace JellyfinBench
             }
 
             WriteXmlHeader(xml, buildMode);
-            if (ResolutionFailsInstead) WriteXmlHeader(r2rFailsXml, buildMode);
+            if (ResolutionFailsInstead)
+                WriteXmlHeader(r2rFailsXml, buildMode);
 
             // StringBuilder warmupBuilder = new StringBuilder();
             for (int warmupI = 0; warmupI < WarmupIterations; warmupI++)
             {
-                if (OperatingSystem.IsLinux()) RunOnLinux(buildMode, image, xml);
-                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml, r2rFailsXml);
+                if (OperatingSystem.IsLinux())
+                    RunOnLinux(buildMode, image, xml);
+
+                if (OperatingSystem.IsWindows())
+                    RunOnWindows(buildMode, xml, r2rFailsXml);
             }
 
             for (int iteration = 0; iteration < Iterations; iteration++)
             {
-                if (OperatingSystem.IsLinux()) RunOnLinux(buildMode, image, xml);
-                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml, r2rFailsXml);
+                if (OperatingSystem.IsLinux())
+                    RunOnLinux(buildMode, image, xml);
+
+                if (OperatingSystem.IsWindows())
+                    RunOnWindows(buildMode, xml, r2rFailsXml);
             }
 
             xml.AppendLine("</Results>");
             xml.AppendLine("</BuildAndRun>");
+
             r2rFailsXml.AppendLine("</Results>");
             r2rFailsXml.AppendLine("</BuildAndRun>");
         }
@@ -498,16 +522,24 @@ namespace JellyfinBench
         {
             Stopwatch sw = Stopwatch.StartNew();
             StringBuilder commandLine = new StringBuilder();
-            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})", buildMode.Name, index+1, total);
+            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})",
+                              buildMode.Name, index+1, total);
 
             commandLine.AppendFormat("build {0}", s_folderName);
-            commandLine.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}", buildMode.NetCoreComposite);
-            commandLine.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}", buildMode.NetCoreIncludeAspNet);
-            commandLine.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}", buildMode.AspNetComposite);
-            commandLine.AppendFormat(" --build-arg APP_R2R={0}", buildMode.AppR2R);
-            commandLine.AppendFormat(" --build-arg APP_COMPOSITE={0}", buildMode.AppComposite);
-            commandLine.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}", buildMode.OneBigComposite);
-            commandLine.AppendFormat(" --build-arg APP_AVX2={0}", buildMode.AppAVX2);
+            commandLine.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}",
+                                      buildMode.NetCoreComposite);
+            commandLine.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}",
+                                      buildMode.NetCoreIncludeAspNet);
+            commandLine.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}",
+                                      buildMode.AspNetComposite);
+            commandLine.AppendFormat(" --build-arg APP_R2R={0}",
+                                      buildMode.AppR2R);
+            commandLine.AppendFormat(" --build-arg APP_COMPOSITE={0}",
+                                      buildMode.AppComposite);
+            commandLine.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}",
+                                      buildMode.OneBigComposite);
+            commandLine.AppendFormat(" --build-arg APP_AVX2={0}",
+                                      buildMode.AppAVX2);
 
             ProcessStartInfo psi = new ProcessStartInfo()
             {
@@ -528,13 +560,15 @@ namespace JellyfinBench
 
                     if (writingImage >= 0)
                     {
-                        imageId = line.Substring(writingImage + WindowsWritingImageString.Length);
+                        imageId = line.Substring(writingImage
+                                                 + WindowsWritingImageString.Length);
                         break;
                     }
                 }
             }
 
-            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
+            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)",
+                              buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
             return imageId!;
         }
 
@@ -542,7 +576,8 @@ namespace JellyfinBench
         {
             Stopwatch sw = Stopwatch.StartNew();
             StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --build");
-            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})", buildMode.Name, index+1, total);
+            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})",
+                              buildMode.Name, index+1, total);
 
             if (buildMode.AppR2R)               commandLine.Append(" --appr2r");
             if (buildMode.AppComposite)         commandLine.Append(" --appcomposite");
@@ -565,16 +600,21 @@ namespace JellyfinBench
             if (exitCode == 0) result = "Finished!";
             else result = "Failed!";
 
-            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
+            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)",
+                              buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
             return result;
         }
 
-        private static bool RunOnLinux(BuildMode buildMode, string dockerImageId, StringBuilder xml)
+        private static bool RunOnLinux(BuildMode buildMode,
+                                       string dockerImageId,
+                                       StringBuilder xml)
         {
             StringBuilder commandLine = new StringBuilder();
             commandLine.Append("run");
-            commandLine.AppendFormat(" --env COMPlus_ReadyToRun={0}", buildMode.UseReadyToRun ? "1" : "0");
-            commandLine.AppendFormat(" --env COMPlus_TieredCompilation={0}", buildMode.UseTieredCompilation ? "1" : "0");
+            commandLine.AppendFormat(" --env COMPlus_ReadyToRun={0}",
+                                      buildMode.UseReadyToRun ? "1" : "0");
+            commandLine.AppendFormat(" --env COMPlus_TieredCompilation={0}",
+                                      buildMode.UseTieredCompilation ? "1" : "0");
             commandLine.AppendFormat(" -it {0}", dockerImageId);
 
             ProcessStartInfo psi = new ProcessStartInfo()
@@ -609,7 +649,9 @@ namespace JellyfinBench
             return true;
         }
 
-        private static bool RunOnWindows(BuildMode buildMode, StringBuilder xml, StringBuilder r2rFailsXml)
+        private static bool RunOnWindows(BuildMode buildMode,
+                                         StringBuilder xml,
+                                         StringBuilder r2rFailsXml)
         {
             StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --run");
             if (ResolutionFailsInstead) commandLine.Append(" RESOLUTION");
@@ -667,7 +709,9 @@ namespace JellyfinBench
             return true;
         }
 
-        private static int RunProcess(ProcessStartInfo psi, TextWriter logFile, out List<string> stdout)
+        private static int RunProcess(ProcessStartInfo psi,
+                                      TextWriter logFile,
+                                      out List<string> stdout)
         {
             Stopwatch sw = Stopwatch.StartNew();
 
@@ -678,11 +722,12 @@ namespace JellyfinBench
                 process.StartInfo.RedirectStandardError = true;
                 process.StartInfo.Environment["DOCKER_BUILDKIT"] = "1";
 
+                List<string> stdoutLines = new List<string>();
                 logFile.WriteLine("Running {0} {1}", psi.FileName, psi.Arguments);
                 process.Start();
 
-                List<string> stdoutLines = new List<string>();
-                process.OutputDataReceived += new DataReceivedEventHandler((object sender, DataReceivedEventArgs eventArgs) =>
+                process.OutputDataReceived += new DataReceivedEventHandler(
+                (object sender, DataReceivedEventArgs eventArgs) =>
                 {
                     string? data = eventArgs?.Data;
                     if (!string.IsNullOrEmpty(data))
@@ -693,7 +738,8 @@ namespace JellyfinBench
                     }
                 });
 
-                process.ErrorDataReceived += new DataReceivedEventHandler((object sender, DataReceivedEventArgs eventArgs) =>
+                process.ErrorDataReceived += new DataReceivedEventHandler(
+                (object sender, DataReceivedEventArgs eventArgs) =>
                 {
                     string? data = eventArgs?.Data;
                     if (!string.IsNullOrEmpty(data))
@@ -723,15 +769,24 @@ namespace JellyfinBench
         private static void WriteXmlHeader(StringBuilder xml, BuildMode buildMode)
         {
             xml.AppendFormat("\n<BuildAndRun Name=\"{0}\">\n", buildMode.Name);
-            xml.AppendFormat("  <NetCoreComposite>{0}</NetCoreComposite>\n", buildMode.NetCoreComposite);
-            xml.AppendFormat("  <NetCoreIncludeAspNet>{0}</NetCoreIncludeAspNet>\n", buildMode.NetCoreIncludeAspNet);
-            xml.AppendFormat("  <AspNetComposite>{0}</AspNetComposite>\n", buildMode.AspNetComposite);
-            xml.AppendFormat("  <AppR2R>{0}</AppR2R>\n", buildMode.AppR2R);
-            xml.AppendFormat("  <AppComposite>{0}</AppComposite>\n", buildMode.AppComposite);
-            xml.AppendFormat("  <OneBigComposite>{0}</OneBigComposite>\n", buildMode.OneBigComposite);
-            xml.AppendFormat("  <AppAVX2>{0}</AppAVX2>\n", buildMode.AppAVX2);
-            xml.AppendFormat("  <UseReadyToRun>{0}</UseReadyToRun>\n", buildMode.UseReadyToRun);
-            xml.AppendFormat("  <UseTieredCompilation>{0}</UseTieredCompilation>\n", buildMode.UseTieredCompilation);
+            xml.AppendFormat("  <NetCoreComposite>{0}</NetCoreComposite>\n",
+                              buildMode.NetCoreComposite);
+            xml.AppendFormat("  <NetCoreIncludeAspNet>{0}</NetCoreIncludeAspNet>\n",
+                              buildMode.NetCoreIncludeAspNet);
+            xml.AppendFormat("  <AspNetComposite>{0}</AspNetComposite>\n",
+                              buildMode.AspNetComposite);
+            xml.AppendFormat("  <AppR2R>{0}</AppR2R>\n",
+                              buildMode.AppR2R);
+            xml.AppendFormat("  <AppComposite>{0}</AppComposite>\n",
+                              buildMode.AppComposite);
+            xml.AppendFormat("  <OneBigComposite>{0}</OneBigComposite>\n",
+                              buildMode.OneBigComposite);
+            xml.AppendFormat("  <AppAVX2>{0}</AppAVX2>\n",
+                              buildMode.AppAVX2);
+            xml.AppendFormat("  <UseReadyToRun>{0}</UseReadyToRun>\n",
+                              buildMode.UseReadyToRun);
+            xml.AppendFormat("  <UseTieredCompilation>{0}</UseTieredCompilation>\n",
+                              buildMode.UseTieredCompilation);
             xml.AppendLine("\n  <Results>");
         }
 
@@ -897,9 +952,17 @@ namespace JellyfinBench
                         netCoreComposite ? "composite" : "default");
                     if (!netCoreIncludeAspNet)
                     {
-                        buildModeName.AppendFormat(" / ASP.NET={0}", aspNetComposite ? "composite" : "default");
+                        buildModeName.AppendFormat(" / ASP.NET={0}",
+                                                      aspNetComposite ?
+                                                      "composite" :
+                                                      "default");
                     }
-                    buildModeName.AppendFormat(" / APP={0}", !appR2R ? "JIT" : !appComposite ? "R2R" : "composite");
+                    buildModeName.AppendFormat(" / APP={0}",
+                                                  !appR2R ?
+                                                  "JIT" :
+                                                  !appComposite ?
+                                                      "R2R" :
+                                                      "composite");
                 }
 
                 if (appAvx2)
@@ -907,8 +970,12 @@ namespace JellyfinBench
                     buildModeName.Append(" / AVX2");
                 }
 
-                buildModeName.AppendFormat(" / TC {0}", useTieredCompilation ? "ON" : "OFF");
-                buildModeName.AppendFormat(" / RTR {0}", useReadyToRun ? "ON" : "OFF");
+                buildModeName.AppendFormat(" / TC {0}", useTieredCompilation ?
+                                                        "ON" :
+                                                        "OFF");
+                buildModeName.AppendFormat(" / RTR {0}", useReadyToRun ?
+                                                         "ON" :
+                                                         "OFF");
 
                 details.AppendLine(buildModeName.ToString());
                 details.AppendLine(new string('=', buildModeName.Length));
@@ -933,11 +1000,21 @@ namespace JellyfinBench
                     baselineAppDelta = appDelta;
                 }
 
-                summary.AppendFormat("{0,5} | {1,3} | ", app.Total.Average, Percentage(app.Total.Average, baselineTotal));
-                summary.AppendFormat("{0,7} | {1,3} | ", runtime.Total.Average, Percentage(runtime.Total.Average, baselineRuntime));
-                summary.AppendFormat("{0,7} | {1,3} | ", apphostDelta, Percentage(apphostDelta, baselineApphostDelta));
-                summary.AppendFormat("{0,7} | {1,3} | ", webhostDelta, Percentage(webhostDelta, baselineWebhostDelta));
-                summary.AppendFormat("{0,7} | {1,3} | ", appDelta, Percentage(appDelta, baselineAppDelta));
+                summary.AppendFormat("{0,5} | {1,3} | ",
+                                      app.Total.Average,
+                                      Percentage(app.Total.Average, baselineTotal));
+                summary.AppendFormat("{0,7} | {1,3} | ",
+                                      runtime.Total.Average,
+                                      Percentage(runtime.Total.Average, baselineRuntime));
+                summary.AppendFormat("{0,7} | {1,3} | ",
+                                      apphostDelta,
+                                      Percentage(apphostDelta, baselineApphostDelta));
+                summary.AppendFormat("{0,7} | {1,3} | ",
+                                      webhostDelta,
+                                      Percentage(webhostDelta, baselineWebhostDelta));
+                summary.AppendFormat("{0,7} | {1,3} | ",
+                                      appDelta,
+                                      Percentage(appDelta, baselineAppDelta));
                 summary.AppendLine(name);
             }
 
