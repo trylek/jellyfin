@@ -10,6 +10,7 @@ using System.Xml;
 namespace JellyfinBench
 {
 #pragma warning disable CA1305
+#pragma warning disable CA1307
     class ListyArray<T>
     {
         private T[] Array;
@@ -30,6 +31,8 @@ namespace JellyfinBench
         public T GetPrevious() { return Array[Index-1]; }
     }
 
+    /* THIS THING HAS A BUG: DO NOT PASS A VALUE-LESS FLAG AT THE END.
+     * OTHERWISE, IT WILL BE IGNORED. */
     class SimpleCommandLineParser
     {
         public SimpleCommandLineParser() {}
@@ -65,6 +68,8 @@ namespace JellyfinBench
         static int WarmupIterations = 2;
         static int Iterations = 10;
         static int Configs = 0;
+        static bool ResolutionFailsInstead = false;
+
         // const bool UseReadyToRun = true;
         // const bool UseTieredCompilation = true;
 
@@ -369,6 +374,15 @@ namespace JellyfinBench
                             Console.Write("\nDocker Run Command:\n{0}\n", cmds.Item2);
                             return 0;
 
+                        case "resolution-fails":
+                            if (!OperatingSystem.IsWindows())
+                            {
+                                Console.WriteLine("The --resolution-fails flag is currently only supported on Windows. Ignoring...");
+                            }
+                            ResolutionFailsInstead = true;
+                            s_buildModes.SelectMatchingConfigs("usereadytorun");
+                            break;
+
                         default:
                             Console.WriteLine("The flag '{0}' is invalid.", kvp.Key);
                             break;
@@ -379,21 +393,26 @@ namespace JellyfinBench
                     Configs = s_buildModes.Count();
             }
 
-            // Console.WriteLine("The regex matched {0} configurations.", s_buildModes.Count());
-            // s_buildModes.EachWithIndex((mode, index) => { Console.WriteLine(mode.Name); }); 
-            // return 0;
-
             s_timestamp = DateTime.Now.ToString("MMdd-HHmm");
             s_folderName = Directory.GetCurrentDirectory();
+
             string xmlFile = "";
+            string r2rFailsXmlFile = "";
 
             StringBuilder xml = new StringBuilder();
+            StringBuilder? r2rFailsXml = null;
             xml.AppendLine("<Xml>");
 
             string buildLogFile = Path.Combine(s_folderName, $"jellyfin-build-{s_timestamp}.log");
             string execLogFile = Path.Combine(s_folderName, $"jellyfin-run-{s_timestamp}.log");
-
             int totalBuildModes = s_buildModes.Count();
+
+            if (ResolutionFailsInstead)
+            {
+                r2rFailsXmlFile = Path.Combine(s_folderName, $"r2rfails-{s_timestamp}.xml");
+                r2rFailsXml = new StringBuilder("<Xml>\n");
+            }
+
             using (StreamWriter buildLogWriter = new StreamWriter(buildLogFile))
             using (StreamWriter execLogWriter = new StreamWriter(execLogFile))
             {
@@ -404,14 +423,14 @@ namespace JellyfinBench
                 {
                     s_buildModes.EachWithIndex((mode, index) =>
                     {
-                        BuildAndRun(mode, xml, index, totalBuildModes);
+                        BuildAndRun(mode, xml, r2rFailsXml!, index, totalBuildModes);
                     });
                 }
                 else
                 {
                     s_buildModes.EachWithIndexUntil(Configs, (mode, index) =>
                     {
-                        BuildAndRun(mode, xml, index, Configs);
+                        BuildAndRun(mode, xml, r2rFailsXml!, index, Configs);
                     });
                 }
 
@@ -422,51 +441,46 @@ namespace JellyfinBench
             xml.AppendLine("</Xml>");
             Console.WriteLine(new string('=', 70));
             Console.WriteLine(xml.ToString());
+
             xmlFile = Path.Combine(s_folderName, $"results-{s_timestamp}.xml");
             File.WriteAllText(xmlFile, xml.ToString());
+
+            if (ResolutionFailsInstead)
+                File.WriteAllText(r2rFailsXmlFile!, r2rFailsXml!.ToString());
 
             string resultsFile = Path.ChangeExtension(xmlFile, "results.txt");
             ProcessXmlFile(xmlFile, resultsFile);
             return 0;
         }
 
-        private static void BuildAndRun(in BuildMode buildMode, StringBuilder xml, int index, int count)
+        private static void BuildAndRun(in BuildMode buildMode, StringBuilder xml, StringBuilder r2rFailsXml, int index, int count)
         {
             string image = Build(buildMode, index, count);
-            #pragma warning disable CA1307
             if (image == null || image.Contains("Failed"))
             {
                 return;
             }
-            #pragma warning restore CA1307
 
-            xml.AppendFormat("<BuildAndRun Name=\"{0}\">\n", buildMode.Name);
-            xml.AppendFormat("<NetCoreComposite>{0}</NetCoreComposite>\n", buildMode.NetCoreComposite);
-            xml.AppendFormat("<NetCoreIncludeAspNet>{0}</NetCoreIncludeAspNet>\n", buildMode.NetCoreIncludeAspNet);
-            xml.AppendFormat("<AspNetComposite>{0}</AspNetComposite>\n", buildMode.AspNetComposite);
-            xml.AppendFormat("<AppR2R>{0}</AppR2R>\n", buildMode.AppR2R);
-            xml.AppendFormat("<AppComposite>{0}</AppComposite>\n", buildMode.AppComposite);
-            xml.AppendFormat("<OneBigComposite>{0}</OneBigComposite>\n", buildMode.OneBigComposite);
-            xml.AppendFormat("<AppAVX2>{0}</AppAVX2>\n", buildMode.AppAVX2);
-            xml.AppendFormat("<UseReadyToRun>{0}</UseReadyToRun>\n", buildMode.UseReadyToRun);
-            xml.AppendFormat("<UseTieredCompilation>{0}</UseTieredCompilation>\n", buildMode.UseTieredCompilation);
-            xml.AppendLine("<Results>");
+            WriteXmlHeader(xml, buildMode);
+            if (ResolutionFailsInstead) WriteXmlHeader(r2rFailsXml, buildMode);
 
             // StringBuilder warmupBuilder = new StringBuilder();
             for (int warmupI = 0; warmupI < WarmupIterations; warmupI++)
             {
                 if (OperatingSystem.IsLinux()) RunOnLinux(buildMode, image, xml);
-                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml);
+                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml, r2rFailsXml);
             }
 
             for (int iteration = 0; iteration < Iterations; iteration++)
             {
                 if (OperatingSystem.IsLinux()) RunOnLinux(buildMode, image, xml);
-                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml);
+                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml, r2rFailsXml);
             }
 
             xml.AppendLine("</Results>");
             xml.AppendLine("</BuildAndRun>");
+            r2rFailsXml.AppendLine("</Results>");
+            r2rFailsXml.AppendLine("</BuildAndRun>");
         }
 
         private static string Build(in BuildMode buildMode, int index, int total)
@@ -580,19 +594,27 @@ namespace JellyfinBench
             {
                 if (stdout[line] == "XMLXMLXML")
                 {
-                    int startLine = ++line;
+                    line++;
                     while (line < stdout.Count && stdout[line] != "LMXLMXLMX")
                     {
-                        xml.AppendLine(stdout[line++]);
+                        string toWrite = $"    {stdout[line]}";
+                        if (stdout[line].StartsWith("<Timing"))
+                            toWrite = toWrite.Insert(0, "\n");
+
+                        xml.AppendLine(toWrite);
+                        line++;
                     }
                 }
             }
             return true;
         }
 
-        private static bool RunOnWindows(BuildMode buildMode, StringBuilder xml)
+        private static bool RunOnWindows(BuildMode buildMode, StringBuilder xml, StringBuilder r2rFailsXml)
         {
-            StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --run RESOLUTION");
+            StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --run");
+            if (ResolutionFailsInstead) commandLine.Append(" RESOLUTION");
+            else commandLine.Append(" BENCHMARK");
+
             if (buildMode.UseReadyToRun)        commandLine.Append(" --readytorun");
             if (buildMode.UseTieredCompilation) commandLine.Append(" --tieredcompilation");
 
@@ -604,7 +626,6 @@ namespace JellyfinBench
             };
 
             int exitCode = RunProcess(psi, s_execLogFile!, out List<string> stdout);
-            // Console.WriteLine("EXITCODEEXITCODEEXITCODE: {0}", exitCode);
             if (exitCode != 143)
             {
                 return false;
@@ -612,14 +633,35 @@ namespace JellyfinBench
 
             for (int line = 0; line < stdout.Count; line++)
             {
-                Console.WriteLine("OUTPUT: {0}", stdout[line]);
                 if (stdout[line] == "XMLXMLXML")
                 {
-                    int startLine = ++line;
+                    line++;
                     while (line < stdout.Count && stdout[line] != "LMXLMXLMX")
                     {
-                        xml.AppendLine(stdout[line++]);
+                        string toWrite = $"    {stdout[line]}";
+                        if (stdout[line].StartsWith("<Timing"))
+                            toWrite = toWrite.Insert(0, "\n");
+
+                        if (ResolutionFailsInstead)
+                            r2rFailsXml.AppendLine(toWrite);
+
+                        xml.AppendLine(toWrite);
+                        line++;
                     }
+
+                    if (!ResolutionFailsInstead)
+                        continue;
+
+                    r2rFailsXml.Append("\n    <R2RFails>\n");
+                    while (++line < stdout.Count)
+                    {
+                        if ((line+1) >= stdout.Count || stdout[line+1] == "XMLXMLXML")
+                            break;
+                        if (!stdout[line].Contains("<R2RResolutionFailed>"))
+                            continue;
+                        r2rFailsXml.AppendLine($"      {stdout[line]}");
+                    }
+                    r2rFailsXml.AppendLine("    </R2RFails>");
                 }
             }
             return true;
@@ -676,6 +718,21 @@ namespace JellyfinBench
                 stdout = stdoutLines;
                 return process.ExitCode;
             }
+        }
+
+        private static void WriteXmlHeader(StringBuilder xml, BuildMode buildMode)
+        {
+            xml.AppendFormat("\n<BuildAndRun Name=\"{0}\">\n", buildMode.Name);
+            xml.AppendFormat("  <NetCoreComposite>{0}</NetCoreComposite>\n", buildMode.NetCoreComposite);
+            xml.AppendFormat("  <NetCoreIncludeAspNet>{0}</NetCoreIncludeAspNet>\n", buildMode.NetCoreIncludeAspNet);
+            xml.AppendFormat("  <AspNetComposite>{0}</AspNetComposite>\n", buildMode.AspNetComposite);
+            xml.AppendFormat("  <AppR2R>{0}</AppR2R>\n", buildMode.AppR2R);
+            xml.AppendFormat("  <AppComposite>{0}</AppComposite>\n", buildMode.AppComposite);
+            xml.AppendFormat("  <OneBigComposite>{0}</OneBigComposite>\n", buildMode.OneBigComposite);
+            xml.AppendFormat("  <AppAVX2>{0}</AppAVX2>\n", buildMode.AppAVX2);
+            xml.AppendFormat("  <UseReadyToRun>{0}</UseReadyToRun>\n", buildMode.UseReadyToRun);
+            xml.AppendFormat("  <UseTieredCompilation>{0}</UseTieredCompilation>\n", buildMode.UseTieredCompilation);
+            xml.AppendLine("\n  <Results>");
         }
 
         struct ValueStatistics
@@ -895,6 +952,7 @@ namespace JellyfinBench
         }
     }
 #pragma warning restore CA1305
+#pragma warning restore CA1307
 }
 
         //private static BuildMode[] s_buildModes =

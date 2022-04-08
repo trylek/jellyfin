@@ -240,6 +240,7 @@ end
 # version of the runtime.
 
 def patch_checked_clr
+  puts "\nPatching dotnet with a Checked version of the runtime..."
   Dir.chdir(RUNTIME_ARTIFACTS_PATH) do
     FileUtils.cp_r(%w(coreclr.dll System.Private.CoreLib.dll),
                    "#{NIGHTLY_PATH}/shared/Microsoft.NETCore.App/7.0.0-preview.4.22201.3",
