@@ -310,19 +310,6 @@ namespace JellyfinBench
         static TextWriter? s_buildLogFile;
         static TextWriter? s_execLogFile;
 
-        // static int TestMain(string[] args)
-        // {
-        //     BuildModeList lst = new BuildModeList();
-        //     Console.WriteLine("\nNumber of Modes: {0}", lst.Count());
-
-        //     lst.EachWithIndex((mode, index) =>
-        //     {
-        //         Console.WriteLine("\nBuild Mode {0}:\n", index+1);
-        //         mode.PrintProperties();
-        //     });
-        //     return 0;
-        // }
-
         static Tuple<string, string> GetConfigBuildAndRunCommand(BuildMode config)
         {
             string imageName = "testcontainer";
@@ -428,11 +415,6 @@ namespace JellyfinBench
                     });
                 }
 
-                // for (int modeIndex = 0; modeIndex < s_buildModes.Length; modeIndex++)
-                // {
-                //     BuildAndRun(s_buildModes[modeIndex], xml, modeIndex, s_buildModes.Length);
-                // }
-
                 s_buildLogFile = null;
                 s_execLogFile = null;
             }
@@ -502,7 +484,7 @@ namespace JellyfinBench
         {
             Stopwatch sw = Stopwatch.StartNew();
             StringBuilder commandLine = new StringBuilder();
-            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})", buildMode.Name, index, total);
+            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})", buildMode.Name, index+1, total);
 
             commandLine.AppendFormat("build {0}", s_folderName);
             commandLine.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}", buildMode.NetCoreComposite);
@@ -538,7 +520,7 @@ namespace JellyfinBench
                 }
             }
 
-            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index, total, sw.ElapsedMilliseconds);
+            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
             return imageId!;
         }
 
@@ -546,7 +528,7 @@ namespace JellyfinBench
         {
             Stopwatch sw = Stopwatch.StartNew();
             StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --build");
-            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})", buildMode.Name, index, total);
+            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})", buildMode.Name, index+1, total);
 
             if (buildMode.AppR2R)               commandLine.Append(" --appr2r");
             if (buildMode.AppComposite)         commandLine.Append(" --appcomposite");
@@ -569,7 +551,7 @@ namespace JellyfinBench
             if (exitCode == 0) result = "Finished!";
             else result = "Failed!";
 
-            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index, total, sw.ElapsedMilliseconds);
+            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
             return result;
         }
 
