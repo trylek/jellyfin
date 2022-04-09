@@ -11,6 +11,7 @@ namespace JellyfinBench
 {
 #pragma warning disable CA1305
 #pragma warning disable CA1307
+#pragma warning disable CA1310
     class ListyArray<T>
     {
         private T[] Array;
@@ -1030,6 +1031,7 @@ namespace JellyfinBench
     }
 #pragma warning restore CA1305
 #pragma warning restore CA1307
+#pragma warning restore CA1310
 }
 
         //private static BuildMode[] s_buildModes =
