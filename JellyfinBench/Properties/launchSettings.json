@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "JellyfinBench": {
+      "commandName": "Project",
+      "commandLineArgs": "--resolution-fails d:\\git\\jellyfin-ivan\\r2rfails-0412-2025.xml",
+      "workingDirectory": "d:\\git\\jellyfin-ivan"
+    }
+  }
+}
