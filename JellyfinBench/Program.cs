@@ -1,20 +1,35 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Web;
 using System.Xml;
 
 namespace JellyfinBench
 {
 #pragma warning disable CA1305
 #pragma warning disable CA1307
-#pragma warning disable CA1310
+    class ListyArray<T>
+    {
+        private T[] Array;
+        private int Index;
+        public int Size;
+
+        public ListyArray(T[] arrToWrap)
+        {
+            Array = arrToWrap;
+            Index = 0;
+            Size = arrToWrap.Length;
+        }
+
+        public bool HasNext() { return (Index < Size-1); }
+        public void MoveNext() { Index++; }
+        public T GetCurrent() { return Array[Index]; }
+        public T GetNext() { return Array[Index+1]; }
+        public T GetPrevious() { return Array[Index-1]; }
+    }
 
     /* THIS THING HAS A BUG: DO NOT PASS A VALUE-LESS FLAG AT THE END.
      * OTHERWISE, IT WILL BE IGNORED. */
@@ -22,35 +37,26 @@ namespace JellyfinBench
     {
         public SimpleCommandLineParser() {}
 
-        public List<KeyValuePair<string, string>> ParseOptions(string[] args)
+        public Dictionary<string, string> ParseOptions(string[] args)
         {
-            var parsedFlags = new List<KeyValuePair<string, string>>();
+            var parsedFlags = new Dictionary<string, string>();
+            ListyArray<string> argsList = new ListyArray<string>(args);
 
-            foreach (string arg in args)
+            while (argsList.HasNext())
             {
-                string option;
-                string value;
-                if (arg[0] == '-')
+                string val = argsList.GetCurrent();
+
+                if (!val.StartsWith("-"))
                 {
-                    string flag = arg.TrimStart('-');
-                    int valueIndex = flag.IndexOf(':');
-                    if (valueIndex >= 0)
-                    {
-                        option = flag.Substring(0, valueIndex);
-                        value = flag.Substring(valueIndex + 1);
-                    }
-                    else
-                    {
-                        option = flag;
-                        value = "";
-                    }
+                    argsList.MoveNext();
+                    continue;
                 }
-                else
-                {
-                    option = "";
-                    value = arg;
-                }
-                parsedFlags.Add(new KeyValuePair<string, string>(option, value));
+
+                string flag = val.TrimStart('-');
+                string next = argsList.HasNext() ? argsList.GetNext().Trim() : "";
+
+                parsedFlags.Add(flag, next.StartsWith("-") ? "" : next);
+                argsList.MoveNext();
             }
             return parsedFlags;
         }
@@ -63,6 +69,9 @@ namespace JellyfinBench
         static int Iterations = 10;
         static int Configs = 0;
         static bool ResolutionFailsInstead = false;
+
+        // const bool UseReadyToRun = true;
+        // const bool UseTieredCompilation = true;
 
         struct BuildMode
         {
@@ -89,69 +98,6 @@ namespace JellyfinBench
                 Console.WriteLine("AppAVX2: {0}", AppAVX2);
                 Console.WriteLine("UseReadyToRun: {0}", UseReadyToRun);
                 Console.WriteLine("UseTieredCompilation: {0}", UseTieredCompilation);
-            }
-
-            public static BuildMode ParseXml(XmlNode xml)
-            {
-                BuildMode buildMode = new BuildMode();
-
-                buildMode.Name = xml.Attributes!["Name"]!.InnerText!;
-                buildMode.NetCoreComposite = bool.Parse(xml["NetCoreComposite"]!.InnerText!);
-                buildMode.NetCoreIncludeAspNet = bool.Parse(xml["NetCoreIncludeAspNet"]!.InnerText!);
-                buildMode.AspNetComposite = bool.Parse(xml["AspNetComposite"]!.InnerText!);
-                buildMode.AppR2R = bool.Parse(xml["AppR2R"]!.InnerText!);
-                buildMode.AppComposite = bool.Parse(xml["AppComposite"]!.InnerText!);
-                buildMode.OneBigComposite = bool.Parse(xml["OneBigComposite"]!.InnerText!);
-                buildMode.AppAVX2 = bool.Parse(xml["AppAVX2"]!.InnerText!);
-                buildMode.UseTieredCompilation = bool.Parse(xml["UseTieredCompilation"]!.InnerText!);
-                buildMode.UseReadyToRun = bool.Parse(xml["UseReadyToRun"]!.InnerText!);
-
-                return buildMode;
-            }
-
-            public override string ToString()
-            {
-                StringBuilder buildModeName = new StringBuilder();
-                buildModeName.Append(Name);
-                buildModeName.Append(": ");
-
-                if (OneBigComposite)
-                {
-                    buildModeName.Append("one big composite");
-                }
-                else
-                {
-                    buildModeName.AppendFormat(".NET Core{0}={1}",
-                        NetCoreIncludeAspNet ? "+ASP.NET" : "",
-                        NetCoreComposite ? "composite" : "default");
-                    if (!NetCoreIncludeAspNet)
-                    {
-                        buildModeName.AppendFormat(" / ASP.NET={0}",
-                                                      AspNetComposite ?
-                                                      "composite" :
-                                                      "default");
-                    }
-                    buildModeName.AppendFormat(" / APP={0}",
-                                                  !AppR2R ?
-                                                  "JIT" :
-                                                  !AppComposite ?
-                                                      "R2R" :
-                                                      "composite");
-                }
-
-                if (AppAVX2)
-                {
-                    buildModeName.Append(" / AVX2");
-                }
-
-                buildModeName.AppendFormat(" / TC {0}", UseTieredCompilation ?
-                                                        "ON" :
-                                                        "OFF");
-                buildModeName.AppendFormat(" / RTR {0}", UseReadyToRun ?
-                                                         "ON" :
-                                                         "OFF");
-
-                return buildModeName.ToString();
             }
         }
 
@@ -186,8 +132,7 @@ namespace JellyfinBench
             {
                 string expr = expressions.Replace(',', '|');
                 Regex regex = new Regex(@"(" + expr + @")");
-                List<BuildMode> selected = Values.Where(cfg => regex.IsMatch(cfg.Name))
-                                          .ToList();
+                List<BuildMode> selected = Values.Where(cfg => regex.IsMatch(cfg.Name)).ToList();
                 Values = selected;
             }
 
@@ -205,7 +150,7 @@ namespace JellyfinBench
             private void Initialize()
             {
                 InitializeBaseModes();
-                // InitializeUseR2RAndTieredCompilationModes();
+                InitializeUseR2RAndTieredCompilationModes();
             }
 
             private void InitializeBaseModes()
@@ -220,7 +165,7 @@ namespace JellyfinBench
                         AppR2R = false,
                         AppComposite = false,
                         OneBigComposite = false,
-                        UseReadyToRun = true,
+                        UseReadyToRun = false,
                         UseTieredCompilation = false,
                     },
                     new BuildMode()
@@ -232,7 +177,7 @@ namespace JellyfinBench
                         AppR2R = true,
                         AppComposite = false,
                         OneBigComposite = false,
-                        UseReadyToRun = true,
+                        UseReadyToRun = false,
                         UseTieredCompilation = false,
                     },
                     new BuildMode()
@@ -245,7 +190,7 @@ namespace JellyfinBench
                         AppComposite = true,
                         OneBigComposite = false,
                         AppAVX2 = true,
-                        UseReadyToRun = true,
+                        UseReadyToRun = false,
                         UseTieredCompilation = false,
                     },
                     new BuildMode()
@@ -258,7 +203,7 @@ namespace JellyfinBench
                         AppComposite = true,
                         OneBigComposite = true,
                         AppAVX2 = true,
-                        UseReadyToRun = true,
+                        UseReadyToRun = false,
                         UseTieredCompilation = false,
                     },
                     new BuildMode()
@@ -271,7 +216,7 @@ namespace JellyfinBench
                         AppComposite = true,
                         OneBigComposite = false,
                         AppAVX2 = true,
-                        UseReadyToRun = true,
+                        UseReadyToRun = false,
                         UseTieredCompilation = false,
                     },
                     new BuildMode()
@@ -284,7 +229,7 @@ namespace JellyfinBench
                         AppComposite = false,
                         OneBigComposite = false,
                         AppAVX2 = true,
-                        UseReadyToRun = true,
+                        UseReadyToRun = false,
                         UseTieredCompilation = false,
                     });
             }
@@ -377,27 +322,18 @@ namespace JellyfinBench
             StringBuilder runCmd = new StringBuilder();
 
             buildCmd.AppendFormat("docker build {0}", Directory.GetCurrentDirectory());
-            buildCmd.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}",
-                                  config.NetCoreComposite);
-            buildCmd.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}",
-                                  config.NetCoreIncludeAspNet);
-            buildCmd.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}",
-                                  config.AspNetComposite);
-            buildCmd.AppendFormat(" --build-arg APP_R2R={0}",
-                                  config.AppR2R);
-            buildCmd.AppendFormat(" --build-arg APP_COMPOSITE={0}",
-                                  config.AppComposite);
-            buildCmd.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}",
-                                  config.OneBigComposite);
-            buildCmd.AppendFormat(" --build-arg APP_AVX2={0}",
-                                  config.AppAVX2);
+            buildCmd.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}", config.NetCoreComposite);
+            buildCmd.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}", config.NetCoreIncludeAspNet);
+            buildCmd.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}", config.AspNetComposite);
+            buildCmd.AppendFormat(" --build-arg APP_R2R={0}", config.AppR2R);
+            buildCmd.AppendFormat(" --build-arg APP_COMPOSITE={0}", config.AppComposite);
+            buildCmd.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}", config.OneBigComposite);
+            buildCmd.AppendFormat(" --build-arg APP_AVX2={0}", config.AppAVX2);
             buildCmd.AppendFormat(" -t {0}", imageName);
 
             runCmd.Append("docker run");
-            runCmd.AppendFormat(" --env COMPlus_ReadyToRun={0}",
-                                config.UseReadyToRun ? "1" : "0");
-            runCmd.AppendFormat(" --env COMPlus_TieredCompilation={0}",
-                                config.UseTieredCompilation ? "1" : "0");
+            runCmd.AppendFormat(" --env COMPlus_ReadyToRun={0}", config.UseReadyToRun ? "1" : "0");
+            runCmd.AppendFormat(" --env COMPlus_TieredCompilation={0}", config.UseTieredCompilation ? "1" : "0");
             runCmd.AppendFormat(" -it {0}", imageName);
 
             return new Tuple<string, string>(buildCmd.ToString(), runCmd.ToString());
@@ -405,17 +341,10 @@ namespace JellyfinBench
 
         static int Main(string[] args)
         {
-            s_timestamp = DateTime.Now.ToString("MMdd-HHmm");
-            s_folderName = Directory.GetCurrentDirectory();
-
-            string xmlFile = Path.Combine(s_folderName, $"results-{s_timestamp}.xml");
-            string r2rFailsXmlFile = Path.Combine(s_folderName, $"r2rfails-{s_timestamp}.xml");
-            string resultsFile = Path.ChangeExtension(xmlFile, ".txt");
-
             if (args.Length > 0)
             {
                 SimpleCommandLineParser parser = new SimpleCommandLineParser();
-                List<KeyValuePair<string, string>> flags = parser.ParseOptions(args);
+                Dictionary<string, string> flags = parser.ParseOptions(args);
 
                 foreach (var kvp in flags)
                 {
@@ -448,27 +377,11 @@ namespace JellyfinBench
                         case "resolution-fails":
                             if (!OperatingSystem.IsWindows())
                             {
-                                Console.WriteLine("The --resolution-fails flag is "
-                                                  + "currently only supported on Windows."
-                                                  + " Ignoring...");
-                                break;
+                                Console.WriteLine("The --resolution-fails flag is currently only supported on Windows. Ignoring...");
                             }
-                            WarmupIterations = 0;
-                            Iterations = 1;
                             ResolutionFailsInstead = true;
-                            // s_buildModes.SelectMatchingConfigs("usereadytorun");
+                            s_buildModes.SelectMatchingConfigs("usereadytorun");
                             break;
-
-                        case "":
-                            if (ResolutionFailsInstead)
-                            {
-                                ProcessXmlFailsFile(kvp.Value, resultsFile);
-                            }
-                            else
-                            {
-                                ProcessXmlFile(kvp.Value, resultsFile);
-                            }
-                            return 0;
 
                         default:
                             Console.WriteLine("The flag '{0}' is invalid.", kvp.Key);
@@ -480,20 +393,24 @@ namespace JellyfinBench
                     Configs = s_buildModes.Count();
             }
 
-            StringBuilder xml = new StringBuilder();
-            xml.AppendLine("<Xml>");
-            StringBuilder? r2rFailsXml = null;
+            s_timestamp = DateTime.Now.ToString("MMdd-HHmm");
+            s_folderName = Directory.GetCurrentDirectory();
 
-            string buildLogFile = Path.Combine(s_folderName,
-                                               $"jellyfin-build-{s_timestamp}.log");
-            string execLogFile = Path.Combine(s_folderName,
-                                               $"jellyfin-run-{s_timestamp}.log");
+            string xmlFile = "";
+            string r2rFailsXmlFile = "";
+
+            StringBuilder xml = new StringBuilder();
+            StringBuilder? r2rFailsXml = null;
+            xml.AppendLine("<Xml>");
+
+            string buildLogFile = Path.Combine(s_folderName, $"jellyfin-build-{s_timestamp}.log");
+            string execLogFile = Path.Combine(s_folderName, $"jellyfin-run-{s_timestamp}.log");
             int totalBuildModes = s_buildModes.Count();
 
             if (ResolutionFailsInstead)
             {
-                r2rFailsXml = new StringBuilder();
-                r2rFailsXml.AppendLine("<Xml>");
+                r2rFailsXmlFile = Path.Combine(s_folderName, $"r2rfails-{s_timestamp}.xml");
+                r2rFailsXml = new StringBuilder("<Xml>\n");
             }
 
             using (StreamWriter buildLogWriter = new StreamWriter(buildLogFile))
@@ -525,26 +442,18 @@ namespace JellyfinBench
             Console.WriteLine(new string('=', 70));
             Console.WriteLine(xml.ToString());
 
+            xmlFile = Path.Combine(s_folderName, $"results-{s_timestamp}.xml");
             File.WriteAllText(xmlFile, xml.ToString());
 
             if (ResolutionFailsInstead)
-            {
-                r2rFailsXml!.AppendLine("</Xml>");
                 File.WriteAllText(r2rFailsXmlFile!, r2rFailsXml!.ToString());
-                ProcessXmlFailsFile(r2rFailsXmlFile, resultsFile);
-            }
-            else
-            {
-                ProcessXmlFile(xmlFile, resultsFile);
-            }
+
+            string resultsFile = Path.ChangeExtension(xmlFile, "results.txt");
+            ProcessXmlFile(xmlFile, resultsFile);
             return 0;
         }
 
-        private static void BuildAndRun(in BuildMode buildMode,
-                                        StringBuilder xml,
-                                        StringBuilder r2rFailsXml,
-                                        int index,
-                                        int count)
+        private static void BuildAndRun(in BuildMode buildMode, StringBuilder xml, StringBuilder r2rFailsXml, int index, int count)
         {
             string image = Build(buildMode, index, count);
             if (image == null || image.Contains("Failed"))
@@ -553,36 +462,25 @@ namespace JellyfinBench
             }
 
             WriteXmlHeader(xml, buildMode);
-            if (ResolutionFailsInstead)
-                WriteXmlHeader(r2rFailsXml, buildMode);
+            if (ResolutionFailsInstead) WriteXmlHeader(r2rFailsXml, buildMode);
 
             // StringBuilder warmupBuilder = new StringBuilder();
             for (int warmupI = 0; warmupI < WarmupIterations; warmupI++)
             {
-                if (OperatingSystem.IsLinux())
-                    RunOnLinux(buildMode, image, xml);
-
-                if (OperatingSystem.IsWindows())
-                    RunOnWindows(buildMode, xml, r2rFailsXml);
+                if (OperatingSystem.IsLinux()) RunOnLinux(buildMode, image, xml);
+                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml, r2rFailsXml);
             }
 
             for (int iteration = 0; iteration < Iterations; iteration++)
             {
-                if (OperatingSystem.IsLinux())
-                    RunOnLinux(buildMode, image, xml);
-
-                if (OperatingSystem.IsWindows())
-                    RunOnWindows(buildMode, xml, r2rFailsXml);
+                if (OperatingSystem.IsLinux()) RunOnLinux(buildMode, image, xml);
+                if (OperatingSystem.IsWindows()) RunOnWindows(buildMode, xml, r2rFailsXml);
             }
 
             xml.AppendLine("</Results>");
             xml.AppendLine("</BuildAndRun>");
-
-            if (ResolutionFailsInstead)
-            {
-                r2rFailsXml.AppendLine("</Results>");
-                r2rFailsXml.AppendLine("</BuildAndRun>");
-            }
+            r2rFailsXml.AppendLine("</Results>");
+            r2rFailsXml.AppendLine("</BuildAndRun>");
         }
 
         private static string Build(in BuildMode buildMode, int index, int total)
@@ -600,24 +498,16 @@ namespace JellyfinBench
         {
             Stopwatch sw = Stopwatch.StartNew();
             StringBuilder commandLine = new StringBuilder();
-            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})",
-                              buildMode.Name, index+1, total);
+            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})", buildMode.Name, index+1, total);
 
             commandLine.AppendFormat("build {0}", s_folderName);
-            commandLine.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}",
-                                      buildMode.NetCoreComposite);
-            commandLine.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}",
-                                      buildMode.NetCoreIncludeAspNet);
-            commandLine.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}",
-                                      buildMode.AspNetComposite);
-            commandLine.AppendFormat(" --build-arg APP_R2R={0}",
-                                      buildMode.AppR2R);
-            commandLine.AppendFormat(" --build-arg APP_COMPOSITE={0}",
-                                      buildMode.AppComposite);
-            commandLine.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}",
-                                      buildMode.OneBigComposite);
-            commandLine.AppendFormat(" --build-arg APP_AVX2={0}",
-                                      buildMode.AppAVX2);
+            commandLine.AppendFormat(" --build-arg NETCORE_COMPOSITE={0}", buildMode.NetCoreComposite);
+            commandLine.AppendFormat(" --build-arg NETCORE_INCLUDE_ASPNET={0}", buildMode.NetCoreIncludeAspNet);
+            commandLine.AppendFormat(" --build-arg ASPNET_COMPOSITE={0}", buildMode.AspNetComposite);
+            commandLine.AppendFormat(" --build-arg APP_R2R={0}", buildMode.AppR2R);
+            commandLine.AppendFormat(" --build-arg APP_COMPOSITE={0}", buildMode.AppComposite);
+            commandLine.AppendFormat(" --build-arg ONE_BIG_COMPOSITE={0}", buildMode.OneBigComposite);
+            commandLine.AppendFormat(" --build-arg APP_AVX2={0}", buildMode.AppAVX2);
 
             ProcessStartInfo psi = new ProcessStartInfo()
             {
@@ -638,15 +528,13 @@ namespace JellyfinBench
 
                     if (writingImage >= 0)
                     {
-                        imageId = line.Substring(writingImage
-                                                 + WindowsWritingImageString.Length);
+                        imageId = line.Substring(writingImage + WindowsWritingImageString.Length);
                         break;
                     }
                 }
             }
 
-            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)",
-                              buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
+            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
             return imageId!;
         }
 
@@ -654,8 +542,7 @@ namespace JellyfinBench
         {
             Stopwatch sw = Stopwatch.StartNew();
             StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --build");
-            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})",
-                              buildMode.Name, index+1, total);
+            Console.WriteLine("\nBuilding configuration: {0} ({1} / {2})", buildMode.Name, index+1, total);
 
             if (buildMode.AppR2R)               commandLine.Append(" --appr2r");
             if (buildMode.AppComposite)         commandLine.Append(" --appcomposite");
@@ -678,21 +565,16 @@ namespace JellyfinBench
             if (exitCode == 0) result = "Finished!";
             else result = "Failed!";
 
-            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)",
-                              buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
+            Console.WriteLine("\nDone building configuration: {0} ({1} / {2}, {3} msecs)", buildMode.Name, index+1, total, sw.ElapsedMilliseconds);
             return result;
         }
 
-        private static bool RunOnLinux(BuildMode buildMode,
-                                       string dockerImageId,
-                                       StringBuilder xml)
+        private static bool RunOnLinux(BuildMode buildMode, string dockerImageId, StringBuilder xml)
         {
             StringBuilder commandLine = new StringBuilder();
             commandLine.Append("run");
-            commandLine.AppendFormat(" --env COMPlus_ReadyToRun={0}",
-                                      buildMode.UseReadyToRun ? "1" : "0");
-            commandLine.AppendFormat(" --env COMPlus_TieredCompilation={0}",
-                                      buildMode.UseTieredCompilation ? "1" : "0");
+            commandLine.AppendFormat(" --env COMPlus_ReadyToRun={0}", buildMode.UseReadyToRun ? "1" : "0");
+            commandLine.AppendFormat(" --env COMPlus_TieredCompilation={0}", buildMode.UseTieredCompilation ? "1" : "0");
             commandLine.AppendFormat(" -it {0}", dockerImageId);
 
             ProcessStartInfo psi = new ProcessStartInfo()
@@ -727,9 +609,7 @@ namespace JellyfinBench
             return true;
         }
 
-        private static bool RunOnWindows(BuildMode buildMode,
-                                         StringBuilder xml,
-                                         StringBuilder r2rFailsXml)
+        private static bool RunOnWindows(BuildMode buildMode, StringBuilder xml, StringBuilder r2rFailsXml)
         {
             StringBuilder commandLine = new StringBuilder("SetupJellyfinServer.rb --run");
             if (ResolutionFailsInstead) commandLine.Append(" RESOLUTION");
@@ -777,16 +657,9 @@ namespace JellyfinBench
                     {
                         if ((line+1) >= stdout.Count || stdout[line+1] == "XMLXMLXML")
                             break;
-                        string lineContent = stdout[line];
-                        int startPos = lineContent.IndexOf("<R2RResolutionFailed>");
-                        int endPos = lineContent.LastIndexOf("</R2RResolutionFailed>");
-                        if (startPos >= 0 && endPos > startPos)
-                        {
-                            startPos += 21;
-                            string ident = lineContent.Substring(startPos, endPos - startPos);
-
-                            r2rFailsXml.AppendLine($"      <R2RResolutionFailed>{HttpUtility.HtmlEncode(ident)}</R2RResolutionFailed>");
-                        }
+                        if (!stdout[line].Contains("<R2RResolutionFailed>"))
+                            continue;
+                        r2rFailsXml.AppendLine($"      {stdout[line]}");
                     }
                     r2rFailsXml.AppendLine("    </R2RFails>");
                 }
@@ -794,9 +667,7 @@ namespace JellyfinBench
             return true;
         }
 
-        private static int RunProcess(ProcessStartInfo psi,
-                                      TextWriter logFile,
-                                      out List<string> stdout)
+        private static int RunProcess(ProcessStartInfo psi, TextWriter logFile, out List<string> stdout)
         {
             Stopwatch sw = Stopwatch.StartNew();
 
@@ -807,12 +678,11 @@ namespace JellyfinBench
                 process.StartInfo.RedirectStandardError = true;
                 process.StartInfo.Environment["DOCKER_BUILDKIT"] = "1";
 
-                List<string> stdoutLines = new List<string>();
                 logFile.WriteLine("Running {0} {1}", psi.FileName, psi.Arguments);
                 process.Start();
 
-                process.OutputDataReceived += new DataReceivedEventHandler(
-                (object sender, DataReceivedEventArgs eventArgs) =>
+                List<string> stdoutLines = new List<string>();
+                process.OutputDataReceived += new DataReceivedEventHandler((object sender, DataReceivedEventArgs eventArgs) =>
                 {
                     string? data = eventArgs?.Data;
                     if (!string.IsNullOrEmpty(data))
@@ -823,8 +693,7 @@ namespace JellyfinBench
                     }
                 });
 
-                process.ErrorDataReceived += new DataReceivedEventHandler(
-                (object sender, DataReceivedEventArgs eventArgs) =>
+                process.ErrorDataReceived += new DataReceivedEventHandler((object sender, DataReceivedEventArgs eventArgs) =>
                 {
                     string? data = eventArgs?.Data;
                     if (!string.IsNullOrEmpty(data))
@@ -854,24 +723,15 @@ namespace JellyfinBench
         private static void WriteXmlHeader(StringBuilder xml, BuildMode buildMode)
         {
             xml.AppendFormat("\n<BuildAndRun Name=\"{0}\">\n", buildMode.Name);
-            xml.AppendFormat("  <NetCoreComposite>{0}</NetCoreComposite>\n",
-                              buildMode.NetCoreComposite);
-            xml.AppendFormat("  <NetCoreIncludeAspNet>{0}</NetCoreIncludeAspNet>\n",
-                              buildMode.NetCoreIncludeAspNet);
-            xml.AppendFormat("  <AspNetComposite>{0}</AspNetComposite>\n",
-                              buildMode.AspNetComposite);
-            xml.AppendFormat("  <AppR2R>{0}</AppR2R>\n",
-                              buildMode.AppR2R);
-            xml.AppendFormat("  <AppComposite>{0}</AppComposite>\n",
-                              buildMode.AppComposite);
-            xml.AppendFormat("  <OneBigComposite>{0}</OneBigComposite>\n",
-                              buildMode.OneBigComposite);
-            xml.AppendFormat("  <AppAVX2>{0}</AppAVX2>\n",
-                              buildMode.AppAVX2);
-            xml.AppendFormat("  <UseReadyToRun>{0}</UseReadyToRun>\n",
-                              buildMode.UseReadyToRun);
-            xml.AppendFormat("  <UseTieredCompilation>{0}</UseTieredCompilation>\n",
-                              buildMode.UseTieredCompilation);
+            xml.AppendFormat("  <NetCoreComposite>{0}</NetCoreComposite>\n", buildMode.NetCoreComposite);
+            xml.AppendFormat("  <NetCoreIncludeAspNet>{0}</NetCoreIncludeAspNet>\n", buildMode.NetCoreIncludeAspNet);
+            xml.AppendFormat("  <AspNetComposite>{0}</AspNetComposite>\n", buildMode.AspNetComposite);
+            xml.AppendFormat("  <AppR2R>{0}</AppR2R>\n", buildMode.AppR2R);
+            xml.AppendFormat("  <AppComposite>{0}</AppComposite>\n", buildMode.AppComposite);
+            xml.AppendFormat("  <OneBigComposite>{0}</OneBigComposite>\n", buildMode.OneBigComposite);
+            xml.AppendFormat("  <AppAVX2>{0}</AppAVX2>\n", buildMode.AppAVX2);
+            xml.AppendFormat("  <UseReadyToRun>{0}</UseReadyToRun>\n", buildMode.UseReadyToRun);
+            xml.AppendFormat("  <UseTieredCompilation>{0}</UseTieredCompilation>\n", buildMode.UseTieredCompilation);
             xml.AppendLine("\n  <Results>");
         }
 
@@ -947,90 +807,6 @@ namespace JellyfinBench
             }
         }
 
-        private static void ProcessXmlFailsFile(string xmlFile, string resultsFile)
-        {
-            XmlDocument xmlDocument = new XmlDocument();
-            xmlDocument.Load(xmlFile);
-
-            List<KeyValuePair<BuildMode, HashSet<string>>> buildModeFailedResolutions = new List<KeyValuePair<BuildMode, HashSet<string>>>();
-
-            foreach (XmlNode buildAndRun in xmlDocument.GetElementsByTagName("BuildAndRun"))
-            {
-                BuildMode buildMode = BuildMode.ParseXml(buildAndRun);
-                HashSet<string> failedResolutions = new HashSet<string>();
-
-                foreach (XmlNode resultChild in buildAndRun!["Results"]!.ChildNodes!)
-                {
-                    if (resultChild.Name == "R2RFails")
-                    {
-                        foreach (XmlNode xmlFailure in resultChild.ChildNodes!)
-                        {
-                            string functionName = xmlFailure.InnerText!;
-                            failedResolutions.Add(functionName);
-                        }
-                    }
-                }
-
-                buildModeFailedResolutions.Add(new KeyValuePair<BuildMode, HashSet<string>>(buildMode, failedResolutions));
-            }
-
-            StringBuilder summary = new StringBuilder();
-            summary.AppendLine("Summary");
-            summary.AppendLine("=======");
-
-            StringBuilder details = new StringBuilder();
-            details.AppendLine("Details");
-            details.AppendLine("=======");
-
-            summary.AppendLine("FAILURES | BASELINE+ | BASELINE- | MODE");
-            summary.AppendLine("=======================================");
-
-            for (int buildModeIndex = 0; buildModeIndex < buildModeFailedResolutions.Count; buildModeIndex++)
-            {
-                BuildMode buildMode = buildModeFailedResolutions[buildModeIndex].Key;
-                HashSet<string> resolutionFailures = buildModeFailedResolutions[buildModeIndex].Value;
-                HashSet<string> baselineResolutionFailures = (buildModeIndex != 0 ? buildModeFailedResolutions[0].Value : new HashSet<string>());
-
-                int failures = resolutionFailures.Count;
-                int baselinePlus = resolutionFailures.Where(fail => !baselineResolutionFailures.Contains(fail)).Count();
-                int baselineMinus = baselineResolutionFailures.Where(fail => !resolutionFailures.Contains(fail)).Count();
-
-                summary.AppendLine($"{failures,8} | {baselinePlus,9} | {baselineMinus,9} | {buildMode.ToString()}");
-
-                string detailTitle = buildMode.ToString();
-                details.AppendLine(detailTitle);
-                details.AppendLine(new string('=', detailTitle.Length));
-                if (buildModeIndex == 0)
-                {
-                    details.AppendLine("BASELINE FAILURES");
-                    details.AppendLine("=================");
-                }
-                else
-                {
-                    details.AppendLine("FAILURES ON TOP OF BASELINE");
-                    details.AppendLine("===========================");
-                }
-                foreach (string failurePlus in resolutionFailures.Where(fail => !baselineResolutionFailures.Contains(fail)).OrderBy(fail => fail))
-                {
-                    details.AppendLine(failurePlus);
-                }
-                if (buildModeIndex != 0)
-                {
-                    details.AppendLine("MISSING BASELINE FAILURES");
-                    details.AppendLine("=========================");
-                    foreach (string failureMinus in baselineResolutionFailures.Where(fail => !resolutionFailures.Contains(fail)).OrderBy(fail => fail))
-                    {
-                        details.AppendLine(failureMinus);
-                    }
-                }
-                details.AppendLine();
-            }
-
-            string results = summary.ToString() + Environment.NewLine + details.ToString();
-            Console.Write(results);
-            File.WriteAllText(resultsFile, results);
-        }
-
         private static void ProcessXmlFile(string xmlFile, string resultsFile)
         {
             XmlDocument xmlDocument = new XmlDocument();
@@ -1055,7 +831,16 @@ namespace JellyfinBench
 
             foreach (XmlNode buildAndRun in xmlDocument.GetElementsByTagName("BuildAndRun"))
             {
-                BuildMode buildMode = BuildMode.ParseXml(buildAndRun);
+                string name = buildAndRun!.Attributes!["Name"]!.InnerText!;
+                bool netCoreComposite = bool.Parse(buildAndRun!["NetCoreComposite"]!.InnerText!);
+                bool netCoreIncludeAspNet = bool.Parse(buildAndRun!["NetCoreIncludeAspNet"]!.InnerText!);
+                bool aspNetComposite = bool.Parse(buildAndRun!["AspNetComposite"]!.InnerText!);
+                bool appR2R = bool.Parse(buildAndRun!["AppR2R"]!.InnerText!);
+                bool appComposite = bool.Parse(buildAndRun!["AppComposite"]!.InnerText!);
+                bool oneBigComposite = bool.Parse(buildAndRun!["OneBigComposite"]!.InnerText!);
+                bool appAvx2 = bool.Parse(buildAndRun!["AppAVX2"]!.InnerText!);
+                bool useTieredCompilation = bool.Parse(buildAndRun!["UseTieredCompilation"]!.InnerText!);
+                bool useReadyToRun = bool.Parse(buildAndRun!["UseReadyToRun"]!.InnerText!);
 
                 PhaseStatistics runtime = new PhaseStatistics();
                 PhaseStatistics app = new PhaseStatistics();
@@ -1097,8 +882,35 @@ namespace JellyfinBench
                     }
                 }
 
-                String buildModeName = buildMode.ToString();
-                details.AppendLine(buildModeName);
+                StringBuilder buildModeName = new StringBuilder();
+                buildModeName.Append(name);
+                buildModeName.Append(": ");
+
+                if (oneBigComposite)
+                {
+                    buildModeName.Append("one big composite");
+                }
+                else
+                {
+                    buildModeName.AppendFormat(".NET Core{0}={1}",
+                        netCoreIncludeAspNet ? "+ASP.NET" : "",
+                        netCoreComposite ? "composite" : "default");
+                    if (!netCoreIncludeAspNet)
+                    {
+                        buildModeName.AppendFormat(" / ASP.NET={0}", aspNetComposite ? "composite" : "default");
+                    }
+                    buildModeName.AppendFormat(" / APP={0}", !appR2R ? "JIT" : !appComposite ? "R2R" : "composite");
+                }
+
+                if (appAvx2)
+                {
+                    buildModeName.Append(" / AVX2");
+                }
+
+                buildModeName.AppendFormat(" / TC {0}", useTieredCompilation ? "ON" : "OFF");
+                buildModeName.AppendFormat(" / RTR {0}", useReadyToRun ? "ON" : "OFF");
+
+                details.AppendLine(buildModeName.ToString());
                 details.AppendLine(new string('=', buildModeName.Length));
                 runtime.WriteTo(details, "RUNTIME");
 
@@ -1121,22 +933,12 @@ namespace JellyfinBench
                     baselineAppDelta = appDelta;
                 }
 
-                summary.AppendFormat("{0,5} | {1,3} | ",
-                                      app.Total.Average,
-                                      Percentage(app.Total.Average, baselineTotal));
-                summary.AppendFormat("{0,7} | {1,3} | ",
-                                      runtime.Total.Average,
-                                      Percentage(runtime.Total.Average, baselineRuntime));
-                summary.AppendFormat("{0,7} | {1,3} | ",
-                                      apphostDelta,
-                                      Percentage(apphostDelta, baselineApphostDelta));
-                summary.AppendFormat("{0,7} | {1,3} | ",
-                                      webhostDelta,
-                                      Percentage(webhostDelta, baselineWebhostDelta));
-                summary.AppendFormat("{0,7} | {1,3} | ",
-                                      appDelta,
-                                      Percentage(appDelta, baselineAppDelta));
-                summary.AppendLine(buildMode.Name);
+                summary.AppendFormat("{0,5} | {1,3} | ", app.Total.Average, Percentage(app.Total.Average, baselineTotal));
+                summary.AppendFormat("{0,7} | {1,3} | ", runtime.Total.Average, Percentage(runtime.Total.Average, baselineRuntime));
+                summary.AppendFormat("{0,7} | {1,3} | ", apphostDelta, Percentage(apphostDelta, baselineApphostDelta));
+                summary.AppendFormat("{0,7} | {1,3} | ", webhostDelta, Percentage(webhostDelta, baselineWebhostDelta));
+                summary.AppendFormat("{0,7} | {1,3} | ", appDelta, Percentage(appDelta, baselineAppDelta));
+                summary.AppendLine(name);
             }
 
             string results = summary.ToString() + Environment.NewLine + details.ToString();
@@ -1151,7 +953,6 @@ namespace JellyfinBench
     }
 #pragma warning restore CA1305
 #pragma warning restore CA1307
-#pragma warning restore CA1310
 }
 
         //private static BuildMode[] s_buildModes =
