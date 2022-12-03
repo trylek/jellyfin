@@ -62,12 +62,12 @@ mkdir %CG2Dir2%
 mkdir %AppDir%
 mkdir %AppDir%\jellyfin-web
 
-xcopy /s /y %~dp0\..\jellyfin-web\*.* %AppDir%\jellyfin-web\
-xcopy /y %PublishDir%\*.* %AppDir%\
+xcopy /s /q /y %~dp0\..\jellyfin-web\*.* %AppDir%\jellyfin-web\
+xcopy /q /y %PublishDir%\*.* %AppDir%\
 
-rem xcopy /y %TestArtifacts%\System.Private.CoreLib.dll %AppDir%\
+rem xcopy /q /y %TestArtifacts%\System.Private.CoreLib.dll %AppDir%\
 if defined PatchRuntime (
-    xcopy /y %TestArtifacts%\*.* %AppDir%\
+    xcopy /q /y %TestArtifacts%\*.* %AppDir%\
 )
 
 if "%2" == "default-r2r" goto :DefaultR2R
@@ -97,7 +97,7 @@ goto :DockerBuild
 
 :RuntimeComposite
 
-xcopy %PublishDir%\*.dll %CG2Dir%
+xcopy /q %PublishDir%\*.dll %CG2Dir%
 
 del /Q %CG2Dir%\%AppName%.*
 del /Q %CG2Dir%\Microsoft*.*
@@ -115,7 +115,7 @@ goto :DockerBuild
 
 :RuntimeAndASPNETComposite
 
-xcopy %PublishDir%\*.dll %CG2Dir%
+xcopy /q %PublishDir%\*.dll %CG2Dir%
 
 del /Q %CG2Dir%\%AppName%.*
 
@@ -132,8 +132,8 @@ goto :DockerBuild
 
 :RuntimeCompositeAndASPNETComposite
 
-xcopy %PublishDir%\*.dll %CG2Dir%
-xcopy %PublishDir%\Microsoft*.dll %CG2Dir2%
+xcopy /q %PublishDir%\*.dll %CG2Dir%
+xcopy /q %PublishDir%\Microsoft*.dll %CG2Dir2%
 
 del /Q %CG2Dir%\%AppName%.*
 del /Q %CG2Dir%\Microsoft*.*
@@ -161,7 +161,7 @@ goto :DockerBuild
 
 :FullComposite
 
-xcopy %PublishDir%\*.dll %CG2Dir%
+xcopy /q %PublishDir%\*.dll %CG2Dir%
 
 set CrossgenCmd=call %RunCrossgen2%
 set CrossgenCmd=%CrossgenCmd% --composite

@@ -30,6 +30,8 @@ using SQLitePCL;
 using static MediaBrowser.Controller.Extensions.ConfigurationExtensions;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
+#pragma warning disable CA1305
+
 namespace Jellyfin.Server
 {
     /// <summary>
@@ -59,7 +61,7 @@ namespace Jellyfin.Server
         /// <returns><see cref="Task" />.</returns>
         public static Task Main(string[] args)
         {
-            DisplayProcessDuration("RUNTIME");
+            // DisplayProcessDuration("RUNTIME");
 
             static Task ErrorParsingArguments(IEnumerable<Error> errors)
             {
@@ -190,28 +192,28 @@ namespace Jellyfin.Server
             {
                 var serviceCollection = new ServiceCollection();
                 appHost.Init(serviceCollection);
-                DisplayProcessDuration("APPHOST-INIT");
+                // DisplayProcessDuration("APPHOST-INIT");
 
-                Console.WriteLine("Before creating WebHost...");
+                // Console.WriteLine("Before creating WebHost...");
                 var webHost = new WebHostBuilder().ConfigureWebHostBuilder(appHost, serviceCollection, options, startupConfig, appPaths).Build();
-                Console.WriteLine("After creating WebHost...");
+                // Console.WriteLine("After creating WebHost...");
 
                 // Re-use the web host service provider in the app host since ASP.NET doesn't allow a custom service collection.
-                Console.WriteLine("Before AppHost.ServiceProvider...");
+                // Console.WriteLine("Before AppHost.ServiceProvider...");
                 appHost.ServiceProvider = webHost.Services;
-                Console.WriteLine("After AppHost.ServiceProvider...");
-                Console.WriteLine("Before InitializeServices() Await...");
+                // Console.WriteLine("After AppHost.ServiceProvider...");
+                // Console.WriteLine("Before InitializeServices() Await...");
                 await appHost.InitializeServices().ConfigureAwait(false);
-                Console.WriteLine("After InitializeServices() Await...");
-                Console.WriteLine("Before MigrationRunner Run()...");
+                // Console.WriteLine("After InitializeServices() Await...");
+                // Console.WriteLine("Before MigrationRunner Run()...");
                 Migrations.MigrationRunner.Run(appHost, _loggerFactory);
-                Console.WriteLine("After MigrationRunner Run()...");
+                // Console.WriteLine("After MigrationRunner Run()...");
 
                 try
                 {
-                    Console.WriteLine("Before StartAsync() Await...");
+                    // Console.WriteLine("Before StartAsync() Await...");
                     await webHost.StartAsync(_tokenSource.Token).ConfigureAwait(false);
-                    Console.WriteLine("After StartAsync() Await...");
+                    // Console.WriteLine("After StartAsync() Await...");
 
                     if (startupConfig.UseUnixSocket() && Environment.OSVersion.Platform == PlatformID.Unix)
                     {
@@ -226,13 +228,17 @@ namespace Jellyfin.Server
                     throw;
                 }
 
-                DisplayProcessDuration("WEBHOST-START-ASYNC");
+                // DisplayProcessDuration("WEBHOST-START-ASYNC");
                 await appHost.RunStartupTasksAsync(_tokenSource.Token).ConfigureAwait(false);
 
                 stopWatch.Stop();
 
                 _logger.LogInformation("Startup complete {Time:g}", stopWatch.Elapsed);
-                DisplayProcessDuration("APP");
+
+                TimeSpan runningTime = DateTime.Now - Process.GetCurrentProcess().StartTime;
+                Console.WriteLine("### USECS: {0}/{1}###", System.Environment.GetEnvironmentVariable("Iteration"), runningTime.Ticks / 10);
+                
+                // DisplayProcessDuration("APP");
                 Environment.Exit(0);
 
                 // Block main thread until shutdown
