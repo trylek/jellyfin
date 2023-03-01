@@ -12,6 +12,7 @@
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>CA1305</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -200,6 +200,9 @@ namespace Jellyfin.Server
                 Console.WriteLine("Before AppHost.ServiceProvider...");
                 appHost.ServiceProvider = webHost.Services;
                 Console.WriteLine("After AppHost.ServiceProvider...");
+
+                //Environment.Exit(0);
+
                 Console.WriteLine("Before InitializeServices() Await...");
                 await appHost.InitializeServices().ConfigureAwait(false);
                 Console.WriteLine("After InitializeServices() Await...");
